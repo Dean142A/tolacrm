@@ -174,7 +174,6 @@ class Woo_CRM_Campaigns {
             }
         } else {
             // Get user IDs with segment meta
-            $user_ids = get_objects_in_term(); // fallback
             $users = get_users(array(
                 'meta_key'   => '_crm_segment',
                 'meta_value' => $segment,
