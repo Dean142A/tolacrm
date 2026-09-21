@@ -28,8 +28,6 @@ define('WOO_CRM_BASENAME', plugin_basename(__FILE__));
  */
 spl_autoload_register(function ($class) {
     $prefix = 'Woo_CRM_';
-    $base_dir = WOO_CRM_PATH . 'includes/';
-
     $len = strlen($prefix);
     if (strncmp($prefix, $class, $len) !== 0) {
         return;
@@ -37,10 +35,19 @@ spl_autoload_register(function ($class) {
 
     $relative_class = substr($class, $len);
     $file_name = 'class-crm-' . strtolower(str_replace('_', '-', $relative_class)) . '.php';
-    $file = $base_dir . $file_name;
 
-    if (file_exists($file)) {
-        require_once $file;
+    // 1. Check includes/ directory
+    $file_includes = WOO_CRM_PATH . 'includes/' . $file_name;
+    if (file_exists($file_includes)) {
+        require_once $file_includes;
+        return;
+    }
+
+    // 2. Check admin/ directory
+    $file_admin = WOO_CRM_PATH . 'admin/' . $file_name;
+    if (file_exists($file_admin)) {
+        require_once $file_admin;
+        return;
     }
 });
 
@@ -89,4 +96,5 @@ function run_woo_crm() {
     $plugin->run();
 }
 
-add_action('plugins_loaded', 'run_woo_crm');
+// Priority 15 ensures WooCommerce (priority 10) is fully loaded first
+add_action('plugins_loaded', 'run_woo_crm', 15);
