@@ -62,7 +62,64 @@
             });
         }
 
-        // 2. Manual Campaign Blast Form Submit Handler
+        // 2. Merge Tag Pill Click Insertion Handler
+        $(document).on('click', '.tag-pill-btn', function(e) {
+            e.preventDefault();
+            var tag = $(this).data('tag');
+            var $textarea = $('#campaign_message');
+
+            if ($textarea.length) {
+                var start = $textarea[0].selectionStart;
+                var end = $textarea[0].selectionEnd;
+                var text = $textarea.val();
+
+                $textarea.val(text.substring(0, start) + tag + text.substring(end));
+                $textarea.focus();
+                $textarea[0].selectionStart = $textarea[0].selectionEnd = start + tag.length;
+            }
+        });
+
+        // 3. Live Email Preview Handler
+        $(document).on('click', '.btn-preview-campaign', function(e) {
+            e.preventDefault();
+
+            var subject  = $('#campaign_subject').val();
+            var message  = $('#campaign_message').val();
+            var discount = $('#campaign_discount').val();
+
+            if (!subject || !message) {
+                alert('Please enter a subject line and message content to preview.');
+                return;
+            }
+
+            var $modal = $('#woo-crm-email-preview-modal');
+            $modal.addClass('active');
+
+            $.post(wooCrmData.ajax_url, {
+                action: 'woo_crm_preview_email',
+                subject: subject,
+                message: message,
+                discount: discount,
+                nonce: wooCrmData.nonce
+            }, function(res) {
+                if (res.success) {
+                    $('#preview-subject-text').text(res.data.subject);
+                    var iframe = document.getElementById('crm-email-preview-iframe');
+                    var doc = iframe.contentDocument || iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(res.data.html);
+                    doc.close();
+                } else {
+                    alert('Error rendering email preview.');
+                }
+            });
+        });
+
+        $('#btn-close-email-preview').on('click', function() {
+            $('#woo-crm-email-preview-modal').removeClass('active');
+        });
+
+        // 4. Manual Campaign Blast Form Submit Handler
         $('#woo-crm-manual-campaign-form').on('submit', function(e) {
             e.preventDefault();
 
@@ -98,7 +155,7 @@
             });
         });
 
-        // 3. Cart "Send Now" Action Button
+        // 5. Cart "Send Now" Action Button
         $(document).on('click', '.btn-send-now-cart', function(e) {
             e.preventDefault();
 
@@ -122,7 +179,7 @@
             });
         });
 
-        // 4. Cart "Clear" Action Button
+        // 6. Cart "Clear" Action Button
         $(document).on('click', '.btn-clear-cart', function(e) {
             e.preventDefault();
 
@@ -146,7 +203,7 @@
             });
         });
 
-        // 5. Settings Form Save Handler
+        // 7. Settings Form Save Handler
         $('#woo-crm-settings-form').on('submit', function(e) {
             e.preventDefault();
 
@@ -177,7 +234,7 @@
             });
         });
 
-        // 6. Customer Profile Modal Handler
+        // 8. Customer Profile Modal Handler
         $(document).on('click', '.btn-view-customer-profile', function(e) {
             e.preventDefault();
 
@@ -200,6 +257,14 @@
                     html += '<div><strong>Email:</strong> ' + p.email + '</div>';
                     html += '<div><span class="woo-crm-badge segment-badge-' + p.segment + '">' + p.segment.toUpperCase() + '</span></div>';
                     html += '</div>';
+
+                    if (p.tags && p.tags.length) {
+                        html += '<div style="margin-bottom:15px;"><strong>Contact Tags:</strong> ';
+                        $.each(p.tags, function(i, t) {
+                            html += '<span class="contact-tag-pill">' + t + '</span> ';
+                        });
+                        html += '</div>';
+                    }
 
                     html += '<div style="background:#f8fafc; padding:15px; border-radius:6px; margin-bottom:20px; display:flex; gap:20px;">';
                     html += '<div><strong>Total Orders:</strong> ' + p.summary.total_orders + '</div>';

@@ -13,11 +13,34 @@ $settings = get_option('woo_crm_settings', array());
 <div class="woo-crm-tab-content woo-crm-settings">
     <div class="woo-crm-card">
         <div class="card-header">
-            <h2><span class="dashicons dashicons-admin-generic"></span> <?php esc_html_e('WooCommerce CRM Settings', 'woo-crm'); ?></h2>
+            <h2><span class="dashicons dashicons-admin-generic"></span> <?php esc_html_e('WooCommerce CRM Settings & Customizer', 'woo-crm'); ?></h2>
         </div>
         <div class="card-body p-20">
             <form id="woo-crm-settings-form">
-                <!-- Section 1: Cart Abandonment Intervals -->
+                <!-- Section 1: Email Template Branding & Customizer -->
+                <h3 class="settings-section-title"><span class="dashicons dashicons-art"></span> <?php esc_html_e('Email Template Branding & Appearance', 'woo-crm'); ?></h3>
+                <div class="form-grid mb-20">
+                    <div class="form-group">
+                        <label for="brand_color"><strong><?php esc_html_e('Primary Brand Accent Color', 'woo-crm'); ?>:</strong></label>
+                        <input type="color" name="brand_color" id="brand_color" value="<?php echo esc_attr(isset($settings['brand_color']) ? $settings['brand_color'] : '#4f46e5'); ?>" style="height:38px; width:60px; cursor:pointer;">
+                        <p class="description"><?php esc_html_e('Header color used in automated recovery and campaign emails.', 'woo-crm'); ?></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="brand_logo_url"><strong><?php esc_html_e('Email Header Logo Image URL', 'woo-crm'); ?>:</strong></label>
+                        <input type="url" name="brand_logo_url" id="brand_logo_url" value="<?php echo esc_attr(isset($settings['brand_logo_url']) ? $settings['brand_logo_url'] : ''); ?>" class="regular-text" placeholder="https://example.com/logo.png">
+                        <p class="description"><?php esc_html_e('Optional full image URL for email header logo.', 'woo-crm'); ?></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="brand_footer_text"><strong><?php esc_html_e('Custom Email Footer Text', 'woo-crm'); ?>:</strong></label>
+                        <input type="text" name="brand_footer_text" id="brand_footer_text" value="<?php echo esc_attr(isset($settings['brand_footer_text']) ? $settings['brand_footer_text'] : ''); ?>" class="regular-text" placeholder="&copy; 2026 My Store. All rights reserved.">
+                    </div>
+                </div>
+
+                <hr class="settings-divider">
+
+                <!-- Section 2: Cart Abandonment Intervals -->
                 <h3 class="settings-section-title"><span class="dashicons dashicons-cart"></span> <?php esc_html_e('Cart Abandonment Recovery Intervals', 'woo-crm'); ?></h3>
                 <div class="form-grid mb-20">
                     <div class="form-group">
@@ -39,7 +62,7 @@ $settings = get_option('woo_crm_settings', array());
                     </div>
                 </div>
 
-                <!-- Section 2: Stale Cart Re-engagement -->
+                <!-- Section 3: Stale Cart Re-engagement -->
                 <div class="form-group mb-20">
                     <label>
                         <input type="checkbox" name="stale_stage_enabled" value="1" <?php checked(!empty($settings['stale_stage_enabled'])); ?>>
@@ -54,7 +77,7 @@ $settings = get_option('woo_crm_settings', array());
 
                 <hr class="settings-divider">
 
-                <!-- Section 3: Customer Segmentation -->
+                <!-- Section 4: Customer Segmentation -->
                 <h3 class="settings-section-title"><span class="dashicons dashicons-groups"></span> <?php esc_html_e('Customer Segmentation Rules', 'woo-crm'); ?></h3>
                 <div class="form-group mb-20">
                     <label for="active_segment_days"><strong><?php esc_html_e('"Active" Segment Window (Days)', 'woo-crm'); ?>:</strong></label>
@@ -71,7 +94,7 @@ $settings = get_option('woo_crm_settings', array());
 
                 <hr class="settings-divider">
 
-                <!-- Section 4: Owner Alerts & Weekly Digest -->
+                <!-- Section 5: Owner Alerts & Weekly Digest -->
                 <h3 class="settings-section-title"><span class="dashicons dashicons-email-alt"></span> <?php esc_html_e('Store Owner Notifications & Digests', 'woo-crm'); ?></h3>
                 <div class="form-group mb-15">
                     <label>
@@ -102,14 +125,14 @@ $settings = get_option('woo_crm_settings', array());
 
                 <hr class="settings-divider">
 
-                <!-- Section 5: Data & Uninstall Cleanup -->
+                <!-- Section 6: Data & Uninstall Cleanup -->
                 <h3 class="settings-section-title text-danger"><span class="dashicons dashicons-trash"></span> <?php esc_html_e('Data & Uninstall Cleanup', 'woo-crm'); ?></h3>
                 <div class="form-group mb-20">
                     <label class="text-danger">
                         <input type="checkbox" name="delete_data_on_uninstall" value="1" <?php checked(!empty($settings['delete_data_on_uninstall'])); ?>>
                         <strong><?php esc_html_e('Delete all CRM data on uninstall', 'woo-crm'); ?></strong>
                     </label>
-                    <p class="description text-danger"><?php esc_html_e('WARNING: When enabled, deleting this plugin from WordPress admin will drop wp_crm_carts and wp_crm_campaign_log tables, clear settings, and erase user metadata.', 'woo-crm'); ?></p>
+                    <p class="description text-danger"><?php esc_html_e('WARNING: When enabled, deleting this plugin from WordPress admin will drop custom tables, clear settings, and erase user metadata.', 'woo-crm'); ?></p>
                 </div>
 
                 <button type="submit" class="button button-primary button-large btn-save-settings">

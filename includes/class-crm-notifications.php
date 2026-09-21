@@ -27,16 +27,24 @@ class Woo_CRM_Notifications {
 
         $subject = isset($subjects[$stage]) ? $subjects[$stage] : sprintf(__('Your cart at %s', 'woo-crm'), $store_name);
 
-        $body = '<p>' . esc_html__('Hello,', 'woo-crm') . '</p>';
-        $body .= '<p>' . esc_html__('We noticed you left some great items in your shopping cart. We have saved them for you!', 'woo-crm') . '</p>';
+        $cart_table_html = self::render_cart_items_html($cart->cart_contents);
 
-        // Render Cart Items Table
-        $body .= self::render_cart_items_html($cart->cart_contents);
+        $context = array(
+            'email'            => $email,
+            'first_name'       => strstr($email, '@', true),
+            'cart_total'       => $cart->cart_total,
+            'cart_items_table' => $cart_table_html,
+            'coupon_code'      => $coupon_code,
+        );
+
+        $body = '<p>' . esc_html__('Hello {{contact.first_name}},', 'woo-crm') . '</p>';
+        $body .= '<p>' . esc_html__('We noticed you left some great items in your shopping cart. We have saved them for you!', 'woo-crm') . '</p>';
+        $body .= '{{cart.items_table}}';
 
         if (!empty($coupon_code)) {
             $body .= '<div style="background:#eef2ff; border:2px dashed #4f46e5; border-radius:8px; padding:16px; margin:20px 0; text-align:center;">';
             $body .= '<p style="margin:0; font-size:14px; color:#4338ca; font-weight:600;">' . esc_html__('Special Discount Code:', 'woo-crm') . '</p>';
-            $body .= '<h3 style="margin:8px 0; font-size:24px; color:#1e1b4b; letter-spacing:2px;">' . esc_html($coupon_code) . '</h3>';
+            $body .= '<h3 style="margin:8px 0; font-size:24px; color:#1e1b4b; letter-spacing:2px;">{{coupon.code}}</h3>';
             $body .= '<p style="margin:0; font-size:12px; color:#6366f1;">' . esc_html__('Apply this code at checkout to claim your offer.', 'woo-crm') . '</p>';
             $body .= '</div>';
         }
@@ -45,7 +53,10 @@ class Woo_CRM_Notifications {
         $body .= '<a href="' . esc_url($checkout_url) . '" style="background:#4f46e5; color:#ffffff; text-decoration:none; padding:14px 28px; border-radius:6px; font-weight:bold; display:inline-block;">' . esc_html__('Complete Your Purchase Now &rarr;', 'woo-crm') . '</a>';
         $body .= '</div>';
 
-        return self::send_email($email, $subject, $body);
+        $parsed_subject = Woo_CRM_Merge_Tags::process($subject, $context);
+        $parsed_body    = Woo_CRM_Merge_Tags::process($body, $context);
+
+        return self::send_email($email, $parsed_subject, $parsed_body);
     }
 
     /**
@@ -164,21 +175,38 @@ class Woo_CRM_Notifications {
     }
 
     /**
-     * Core wp_mail dispatcher with clean HTML template wrap.
+     * Core wp_mail dispatcher with customizable brand tokens.
      */
     private static function send_email($to, $subject, $content) {
         if (empty($to)) {
             return false;
         }
 
+        $settings    = get_option('woo_crm_settings', array());
+        $brand_color = !empty($settings['brand_color']) ? sanitize_hex_color($settings['brand_color']) : '#4f46e5';
+        $logo_url    = !empty($settings['brand_logo_url']) ? esc_url($settings['brand_logo_url']) : '';
+        $footer_text = !empty($settings['brand_footer_text']) ? sanitize_text_field($settings['brand_footer_text']) : sprintf('&copy; %s %s. All rights reserved.', date('Y'), get_bloginfo('name'));
+
         $headers = array('Content-Type: text/html; charset=UTF-8');
         $site_name = get_bloginfo('name');
 
         $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0; padding:20px; font-family:Helvetica, Arial, sans-serif; background:#f4f5f7; color:#333333;">';
         $html .= '<div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 4px 6px rgba(0,0,0,0.05);">';
-        $html .= '<div style="background:#1e1b4b; padding:20px; text-align:center; color:#ffffff;"><h1 style="margin:0; font-size:20px;">' . esc_html($site_name) . '</h1></div>';
+        
+        // Header
+        $html .= '<div style="background:' . esc_attr($brand_color) . '; padding:20px; text-align:center; color:#ffffff;">';
+        if ($logo_url) {
+            $html .= '<img src="' . esc_url($logo_url) . '" alt="' . esc_attr($site_name) . '" style="max-height:45px; border:0;">';
+        } else {
+            $html .= '<h1 style="margin:0; font-size:20px; color:#ffffff;">' . esc_html($site_name) . '</h1>';
+        }
+        $html .= '</div>';
+
+        // Body Content
         $html .= '<div style="padding:30px;">' . $content . '</div>';
-        $html .= '<div style="background:#f9fafb; padding:15px; text-align:center; font-size:12px; color:#9ca3af; border-top:1px solid #f3f4f6;">&copy; ' . date('Y') . ' ' . esc_html($site_name) . '. All rights reserved.</div>';
+
+        // Footer
+        $html .= '<div style="background:#f9fafb; padding:15px; text-align:center; font-size:12px; color:#9ca3af; border-top:1px solid #f3f4f6;">' . $footer_text . '</div>';
         $html .= '</div></body></html>';
 
         return wp_mail($to, $subject, $html, $headers);

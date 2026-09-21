@@ -221,6 +221,12 @@
     color: var(--crm-text);
 }
 
+.card-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
 /* Tables */
 .woo-crm-table {
     width: 100%;
@@ -253,7 +259,7 @@
     background: #f8fafc;
 }
 
-/* Badges */
+/* Badges & Contact Tags */
 .woo-crm-badge {
     display: inline-block;
     padding: 3px 10px;
@@ -275,6 +281,64 @@
 .segment-badge-active { background: #d1fae5; color: #065f46; }
 
 .badge-guest { background: #f3f4f6; color: #6b7280; font-size: 10px; margin-left: 6px; }
+
+.contact-tag-pill {
+    display: inline-block;
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin: 2px 2px 2px 0;
+}
+
+/* Merge Tags Toolbar */
+.merge-tags-toolbar {
+    background: #f8fafc;
+    border: 1px dashed var(--crm-border);
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.toolbar-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--crm-muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.tag-pills-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tag-pill-btn {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-family: monospace;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tag-pill-btn:hover {
+    background: var(--crm-primary);
+    color: #ffffff;
+    border-color: var(--crm-primary);
+}
+
+.form-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
 
 /* Timeline UI */
 .woo-crm-journeys-list {
@@ -354,22 +418,39 @@
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
 }
 
+.woo-crm-preview-modal-content {
+    max-width: 650px;
+}
+
 .woo-crm-modal-header {
-    padding: 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--crm-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 
-.woo-crm-modal-header h2 { margin: 0; font-size: 18px; }
+.woo-crm-modal-header h2 { margin: 0; font-size: 16px; }
 .woo-crm-modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--crm-muted); }
 
-.woo-crm-modal-body { padding: 20px; }
+.email-preview-subject-bar {
+    background: #f8fafc;
+    padding: 12px 20px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--crm-border);
+}
+
+.email-preview-iframe-wrapper iframe {
+    width: 100%;
+    height: 480px;
+    border: none;
+    display: block;
+}
 
 /* Utilities */
 .p-0 { padding: 0 !important; }
 .p-20 { padding: 20px !important; }
+.mb-10 { margin-bottom: 10px !important; }
 .mb-15 { margin-bottom: 15px !important; }
 .mb-20 { margin-bottom: 20px !important; }
 .text-right { text-align: right; }

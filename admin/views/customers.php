@@ -11,9 +11,7 @@ global $wpdb;
 $stats_table = $wpdb->prefix . 'wc_order_stats';
 
 $selected_segment = isset($_GET['segment']) ? sanitize_text_field($_GET['segment']) : 'all';
-$search_query     = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
 
-// Get all customers from WooCommerce stats table aggregated by billing email or customer_id
 $sql = "SELECT customer_id, 
                (SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_billing_email' AND post_id = MAX(order_id) LIMIT 1) as billing_email,
                COUNT(order_id) as total_orders, 
@@ -25,6 +23,7 @@ $sql = "SELECT customer_id,
         ORDER BY ltv DESC LIMIT 100";
 
 $customers = $wpdb->get_results($sql);
+$export_url = admin_url('admin.php?action=woo_crm_export_customers');
 ?>
 
 <div class="woo-crm-tab-content woo-crm-customers">
@@ -32,6 +31,7 @@ $customers = $wpdb->get_results($sql);
         <div class="card-header">
             <h2><span class="dashicons dashicons-groups"></span> <?php esc_html_e('Customer Profiles & Segmentation', 'woo-crm'); ?></h2>
             <div class="card-filters">
+                <a href="<?php echo esc_url($export_url); ?>" class="button button-secondary"><span class="dashicons dashicons-download"></span> <?php esc_html_e('Export CSV', 'woo-crm'); ?></a>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=customers&segment=all')); ?>" class="button <?php echo $selected_segment === 'all' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('All', 'woo-crm'); ?></a>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=customers&segment=active')); ?>" class="button <?php echo $selected_segment === 'active' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Active', 'woo-crm'); ?></a>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=customers&segment=returning')); ?>" class="button <?php echo $selected_segment === 'returning' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Returning', 'woo-crm'); ?></a>
@@ -46,6 +46,7 @@ $customers = $wpdb->get_results($sql);
                         <tr>
                             <th><?php esc_html_e('Customer / Identifier', 'woo-crm'); ?></th>
                             <th><?php esc_html_e('Segment Status', 'woo-crm'); ?></th>
+                            <th><?php esc_html_e('Contact Tags', 'woo-crm'); ?></th>
                             <th><?php esc_html_e('Total Orders', 'woo-crm'); ?></th>
                             <th><?php esc_html_e('Lifetime Value (LTV)', 'woo-crm'); ?></th>
                             <th><?php esc_html_e('Last Purchase', 'woo-crm'); ?></th>
@@ -59,6 +60,7 @@ $customers = $wpdb->get_results($sql);
                             $email = $user ? $user->user_email : ($c->billing_email ? $c->billing_email : 'Customer #' . $c->customer_id);
                             $name  = $user ? $user->display_name : __('Guest Customer', 'woo-crm');
                             $segment = Woo_CRM_Customers::recalculate_customer_segment($c->customer_id ? $c->customer_id : $email);
+                            $tags = Woo_CRM_Tags::get_tags($c->customer_id ? $c->customer_id : $email);
 
                             if ($selected_segment !== 'all' && $segment !== $selected_segment) {
                                 continue;
@@ -76,6 +78,15 @@ $customers = $wpdb->get_results($sql);
                                     <span class="woo-crm-badge segment-badge-<?php echo esc_attr($segment); ?>">
                                         <?php echo esc_html(ucfirst($segment)); ?>
                                     </span>
+                                </td>
+                                <td>
+                                    <?php if (!empty($tags)) : ?>
+                                        <?php foreach ($tags as $t) : ?>
+                                            <span class="contact-tag-pill"><?php echo esc_html($t); ?></span>
+                                        <?php endforeach; ?>
+                                    <?php else : ?>
+                                        <span class="text-muted font-small">—</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td><strong><?php echo intval($c->total_orders); ?></strong></td>
                                 <td><strong class="text-success"><?php echo wc_price($c->ltv); ?></strong></td>

@@ -43,6 +43,8 @@ $stage_names = array(
     3 => __('3 - 3-Day Final Sent', 'woo-crm'),
     4 => __('4 - Stale Re-engagement', 'woo-crm'),
 );
+
+$export_url = admin_url('admin.php?action=woo_crm_export_carts');
 ?>
 
 <div class="woo-crm-tab-content woo-crm-carts">
@@ -50,6 +52,7 @@ $stage_names = array(
         <div class="card-header">
             <h2><span class="dashicons dashicons-cart"></span> <?php esc_html_e('Abandoned Cart Recovery Monitor', 'woo-crm'); ?></h2>
             <div class="card-actions">
+                <a href="<?php echo esc_url($export_url); ?>" class="button button-secondary"><span class="dashicons dashicons-download"></span> <?php esc_html_e('Export CSV', 'woo-crm'); ?></a>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=active')); ?>" class="button <?php echo $status_filter === 'active' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Active Unconverted', 'woo-crm'); ?></a>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=converted')); ?>" class="button <?php echo $status_filter === 'converted' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Converted Carts', 'woo-crm'); ?></a>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=all')); ?>" class="button <?php echo $status_filter === 'all' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('All Carts', 'woo-crm'); ?></a>

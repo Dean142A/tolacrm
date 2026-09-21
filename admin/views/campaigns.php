@@ -10,6 +10,7 @@ if (!defined('ABSPATH')) {
 global $wpdb;
 $campaigns_table = $wpdb->prefix . 'crm_campaign_log';
 $logs = $wpdb->get_results("SELECT * FROM {$campaigns_table} ORDER BY sent_at DESC LIMIT 50");
+$merge_tags = Woo_CRM_Merge_Tags::get_available_tags();
 ?>
 
 <div class="woo-crm-tab-content woo-crm-campaigns">
@@ -33,24 +34,42 @@ $logs = $wpdb->get_results("SELECT * FROM {$campaigns_table} ORDER BY sent_at DE
 
                     <div class="form-group mb-15">
                         <label for="campaign_subject"><strong><?php esc_html_e('Email Subject Line', 'woo-crm'); ?>:</strong></label>
-                        <input type="text" name="subject" id="campaign_subject" class="widefat" placeholder="<?php esc_attr_e('e.g. Exclusive VIP Offer Just For You!', 'woo-crm'); ?>" required>
+                        <input type="text" name="subject" id="campaign_subject" class="widefat" placeholder="<?php esc_attr_e('e.g. Exclusive VIP Offer for {{contact.first_name}}!', 'woo-crm'); ?>" required>
+                    </div>
+
+                    <!-- Merge Tags Insertion Toolbar -->
+                    <div class="merge-tags-toolbar mb-10">
+                        <span class="toolbar-label"><?php esc_html_e('Insert Merge Tag:', 'woo-crm'); ?></span>
+                        <div class="tag-pills-list">
+                            <?php foreach ($merge_tags as $t) : ?>
+                                <button type="button" class="tag-pill-btn" data-tag="<?php echo esc_attr($t['tag']); ?>" title="<?php echo esc_attr($t['label']); ?>">
+                                    <?php echo esc_html($t['tag']); ?>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
 
                     <div class="form-group mb-15">
                         <label for="campaign_message"><strong><?php esc_html_e('Email Message Body', 'woo-crm'); ?>:</strong></label>
-                        <textarea name="message" id="campaign_message" rows="5" class="widefat" placeholder="<?php esc_attr_e('Write your campaign announcement message here...', 'woo-crm'); ?>" required></textarea>
+                        <textarea name="message" id="campaign_message" rows="6" class="widefat" placeholder="<?php esc_attr_e('Hello {{contact.first_name}}, write your campaign broadcast message here...', 'woo-crm'); ?>" required></textarea>
                     </div>
 
                     <div class="form-group mb-20">
                         <label for="campaign_discount"><strong><?php esc_html_e('Attach Dynamic Discount Coupon (% Off)', 'woo-crm'); ?>:</strong></label>
                         <input type="number" name="discount" id="campaign_discount" min="0" max="100" value="10" class="small-text"> %
-                        <p class="description"><?php esc_html_e('Automatically generates single-use WooCommerce coupons via WC_Coupon API.', 'woo-crm'); ?></p>
+                        <p class="description"><?php esc_html_e('Generates single-use WooCommerce coupons via WC_Coupon API.', 'woo-crm'); ?></p>
                     </div>
 
-                    <button type="submit" class="button button-primary button-large btn-send-campaign">
-                        <span class="dashicons dashicons-send"></span> <?php esc_html_e('Send Campaign Blast Now', 'woo-crm'); ?>
-                    </button>
-                    <span class="spinner" id="campaign-spinner"></span>
+                    <div class="form-actions-row">
+                        <button type="submit" class="button button-primary button-large btn-send-campaign">
+                            <span class="dashicons dashicons-send"></span> <?php esc_html_e('Send Campaign Blast Now', 'woo-crm'); ?>
+                        </button>
+
+                        <button type="button" class="button button-secondary button-large btn-preview-campaign">
+                            <span class="dashicons dashicons-visibility"></span> <?php esc_html_e('Preview Email Live', 'woo-crm'); ?>
+                        </button>
+                        <span class="spinner" id="campaign-spinner"></span>
+                    </div>
                 </form>
             </div>
         </div>

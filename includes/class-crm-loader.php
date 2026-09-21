@@ -55,10 +55,16 @@ class Woo_CRM_Loader {
 
         // Admin AJAX Actions
         $this->add_action('wp_ajax_woo_crm_send_manual_campaign', $plugin_admin, 'ajax_send_manual_campaign');
+        $this->add_action('wp_ajax_woo_crm_preview_email', $plugin_admin, 'ajax_preview_email');
         $this->add_action('wp_ajax_woo_crm_send_now_cart', $plugin_admin, 'ajax_send_now_cart');
         $this->add_action('wp_ajax_woo_crm_clear_cart', $plugin_admin, 'ajax_clear_cart');
         $this->add_action('wp_ajax_woo_crm_save_settings', $plugin_admin, 'ajax_save_settings');
         $this->add_action('wp_ajax_woo_crm_get_customer_details', $plugin_admin, 'ajax_get_customer_details');
+        $this->add_action('wp_ajax_woo_crm_toggle_contact_tag', $plugin_admin, 'ajax_toggle_contact_tag');
+
+        // CSV Export Admin Actions
+        $this->add_action('admin_action_woo_crm_export_carts', 'Woo_CRM_Exporter', 'export_carts_csv');
+        $this->add_action('admin_action_woo_crm_export_customers', 'Woo_CRM_Exporter', 'export_customers_csv');
     }
 
     private function define_public_hooks() {
@@ -90,6 +96,10 @@ class Woo_CRM_Loader {
 
         // Front-end JS enqueue for checkout email capture
         $this->add_action('wp_enqueue_scripts', $carts, 'enqueue_frontend_scripts');
+
+        // REST API Routes
+        $rest_controller = new Woo_CRM_REST_Controller();
+        $this->add_action('rest_api_init', $rest_controller, 'register_routes');
     }
 
     public function run() {

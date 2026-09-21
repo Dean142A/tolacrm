@@ -2,7 +2,7 @@
 /**
  * Woo_CRM_Campaigns
  *
- * Automated & manual segment campaign triggers, deduplication, and WC_Coupon API generation.
+ * Automated & manual segment campaign triggers, deduplication, dynamic merge tags, and WC_Coupon API generation.
  */
 
 if (!defined('ABSPATH')) {
@@ -13,14 +13,8 @@ class Woo_CRM_Campaigns {
 
     /**
      * Generate dynamic single-use coupon exclusively via WooCommerce WC_Coupon API.
-     *
-     * @param string $discount_type 'percent' or 'fixed_cart'
-     * @param float $amount Discount amount
-     * @param int $expiry_days Days until coupon expires
-     * @param string $prefix Coupon code prefix
-     * @return string Coupon code string
      */
-    public static function create_coupon($discount_type = 'percent', $amount = 10, $expiry_days = 7, $prefix = 'CRM-') {
+    public static function create_coupon($discount_type = 'percent', $amount = 10, $expiry_days = 7, $prefix = 'CRM-', $min_spend = 0, $free_shipping = false) {
         if (!class_exists('WC_Coupon')) {
             return '';
         }
@@ -34,6 +28,14 @@ class Woo_CRM_Campaigns {
         $coupon->set_amount($amount);
         $coupon->set_individual_use(true);
         $coupon->set_usage_limit(1);
+
+        if ($min_spend > 0) {
+            $coupon->set_minimum_amount($min_spend);
+        }
+
+        if ($free_shipping) {
+            $coupon->set_free_shipping(true);
+        }
 
         if ($expiry_days > 0) {
             $expiry_date = date('Y-m-d', current_time('timestamp') + ($expiry_days * DAY_IN_SECONDS));
@@ -137,7 +139,19 @@ class Woo_CRM_Campaigns {
                 $coupon_code = self::create_coupon('percent', $discount_percent, 7, 'BLAST-');
             }
 
-            $sent = Woo_CRM_Notifications::send_manual_blast($email, $message_subject, $message_body, $coupon_code);
+            // Parse Merge Tags for personalized broadcast
+            $context = array(
+                'email'           => $email,
+                'first_name'      => strstr($email, '@', true),
+                'segment'         => $segment,
+                'coupon_code'     => $coupon_code,
+                'discount_amount' => $discount_percent ? $discount_percent . '%' : '',
+            );
+
+            $parsed_subject = Woo_CRM_Merge_Tags::process($message_subject, $context);
+            $parsed_body    = Woo_CRM_Merge_Tags::process($message_body, $context);
+
+            $sent = Woo_CRM_Notifications::send_manual_blast($email, $parsed_subject, $parsed_body, $coupon_code);
 
             if ($sent) {
                 $wpdb->insert(
@@ -173,7 +187,6 @@ class Woo_CRM_Campaigns {
                 $recipients[] = array('user_id' => $u->ID, 'email' => $u->user_email);
             }
         } else {
-            // Get user IDs with segment meta
             $users = get_users(array(
                 'meta_key'   => '_crm_segment',
                 'meta_value' => $segment,

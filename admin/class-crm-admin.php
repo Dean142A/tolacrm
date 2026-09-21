@@ -56,10 +56,11 @@ class Woo_CRM_Admin {
         $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'overview';
 
         wp_localize_script('woo-crm-admin-js', 'wooCrmData', array(
-            'ajax_url'   => admin_url('admin-ajax.php'),
-            'nonce'      => wp_create_nonce('woo_crm_admin_nonce'),
-            'active_tab' => $current_tab,
-            'labels'     => array(
+            'ajax_url'    => admin_url('admin-ajax.php'),
+            'nonce'       => wp_create_nonce('woo_crm_admin_nonce'),
+            'active_tab'  => $current_tab,
+            'merge_tags'  => Woo_CRM_Merge_Tags::get_available_tags(),
+            'labels'      => array(
                 'confirm_send'  => __('Are you sure you want to send this campaign blast now?', 'woo-crm'),
                 'confirm_clear' => __('Are you sure you want to clear this cart?', 'woo-crm'),
                 'sending'       => __('Sending...', 'woo-crm'),
@@ -93,6 +94,9 @@ class Woo_CRM_Admin {
             include WOO_CRM_PATH . 'admin/views/dashboard.php';
         }
 
+        // Email preview modal partial
+        include WOO_CRM_PATH . 'admin/partials/modal-email-preview.php';
+
         echo '</div>';
     }
 
@@ -116,6 +120,67 @@ class Woo_CRM_Admin {
 
         wp_send_json_success(array(
             'message' => sprintf(__('Campaign sent successfully to %d customer(s).', 'woo-crm'), $count)
+        ));
+    }
+
+    /**
+     * AJAX: Live Email Preview Renderer.
+     */
+    public function ajax_preview_email() {
+        Woo_CRM_Security::check_capability();
+        Woo_CRM_Security::check_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '');
+
+        $subject = isset($_POST['subject']) ? sanitize_text_field($_POST['subject']) : '';
+        $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
+        $discount = isset($_POST['discount']) ? floatval($_POST['discount']) : 0;
+
+        $sample_coupon = $discount > 0 ? 'PREVIEW-' . rand(100, 999) : '';
+
+        $context = array(
+            'email'           => 'alex.smith@example.com',
+            'first_name'      => 'Alex',
+            'segment'         => 'VIP',
+            'coupon_code'     => $sample_coupon,
+            'discount_amount' => $discount ? $discount . '%' : '',
+        );
+
+        $parsed_subject = Woo_CRM_Merge_Tags::process($subject, $context);
+        $parsed_message = Woo_CRM_Merge_Tags::process($message, $context);
+
+        $settings    = get_option('woo_crm_settings', array());
+        $brand_color = !empty($settings['brand_color']) ? sanitize_hex_color($settings['brand_color']) : '#4f46e5';
+        $logo_url    = !empty($settings['brand_logo_url']) ? esc_url($settings['brand_logo_url']) : '';
+        $footer_text = !empty($settings['brand_footer_text']) ? sanitize_text_field($settings['brand_footer_text']) : sprintf('&copy; %s %s. All rights reserved.', date('Y'), get_bloginfo('name'));
+
+        $site_name = get_bloginfo('name');
+
+        $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0; padding:20px; font-family:Helvetica, Arial, sans-serif; background:#f4f5f7; color:#333333;">';
+        $html .= '<div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 4px 6px rgba(0,0,0,0.05);">';
+        
+        $html .= '<div style="background:' . esc_attr($brand_color) . '; padding:20px; text-align:center; color:#ffffff;">';
+        if ($logo_url) {
+            $html .= '<img src="' . esc_url($logo_url) . '" alt="' . esc_attr($site_name) . '" style="max-height:45px; border:0;">';
+        } else {
+            $html .= '<h1 style="margin:0; font-size:20px; color:#ffffff;">' . esc_html($site_name) . '</h1>';
+        }
+        $html .= '</div>';
+
+        $html .= '<div style="padding:30px;"><p>' . wp_kses_post(nl2br($parsed_message)) . '</p>';
+
+        if ($sample_coupon) {
+            $html .= '<div style="background:#fffbeb; border:2px dashed #f59e0b; border-radius:8px; padding:16px; margin:20px 0; text-align:center;">';
+            $html .= '<p style="margin:0; font-size:14px; color:#b45309; font-weight:600;">' . esc_html__('Your Special Promo Code:', 'woo-crm') . '</p>';
+            $html .= '<h3 style="margin:8px 0; font-size:24px; color:#78350f; letter-spacing:2px;">' . esc_html($sample_coupon) . '</h3>';
+            $html .= '</div>';
+        }
+
+        $html .= '</div>';
+        $html .= '<div style="background:#f9fafb; padding:15px; text-align:center; font-size:12px; color:#9ca3af; border-top:1px solid #f3f4f6;">' . $footer_text . '</div>';
+        $html .= '</div></body></html>';
+
+        wp_send_json_success(array(
+            'subject' => $parsed_subject,
+            'html'    => $html
         ));
     }
 
@@ -206,6 +271,9 @@ class Woo_CRM_Admin {
             'notify_owner_segment_active'  => !empty($_POST['notify_owner_segment_active']) ? 1 : 0,
             'auto_campaign_segment_change' => !empty($_POST['auto_campaign_segment_change']) ? 1 : 0,
             'delete_data_on_uninstall'     => !empty($_POST['delete_data_on_uninstall']) ? 1 : 0,
+            'brand_color'                  => isset($_POST['brand_color']) ? sanitize_hex_color($_POST['brand_color']) : '#4f46e5',
+            'brand_logo_url'               => isset($_POST['brand_logo_url']) ? esc_url_raw($_POST['brand_logo_url']) : '',
+            'brand_footer_text'            => isset($_POST['brand_footer_text']) ? sanitize_text_field($_POST['brand_footer_text']) : '',
         );
 
         update_option('woo_crm_settings', $settings);
@@ -226,6 +294,33 @@ class Woo_CRM_Admin {
         }
 
         $profile = Woo_CRM_Customers::get_customer_profile($identifier);
+        $profile['tags'] = Woo_CRM_Tags::get_tags($identifier);
+
         wp_send_json_success($profile);
+    }
+
+    /**
+     * AJAX: Add/Remove Custom Tag for Customer.
+     */
+    public function ajax_toggle_contact_tag() {
+        Woo_CRM_Security::check_capability();
+        Woo_CRM_Security::check_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '');
+
+        $identifier = isset($_POST['identifier']) ? sanitize_text_field($_POST['identifier']) : '';
+        $tag        = isset($_POST['tag']) ? sanitize_text_field($_POST['tag']) : '';
+        $op         = isset($_POST['op']) ? sanitize_text_field($_POST['op']) : 'add';
+
+        if (empty($identifier) || empty($tag)) {
+            wp_send_json_error(array('message' => __('Identifier and tag required.', 'woo-crm')));
+        }
+
+        if ($op === 'add') {
+            Woo_CRM_Tags::add_tag($identifier, $tag);
+        } else {
+            Woo_CRM_Tags::remove_tag($identifier, $tag);
+        }
+
+        $current_tags = Woo_CRM_Tags::get_tags($identifier);
+        wp_send_json_success(array('tags' => $current_tags));
     }
 }
