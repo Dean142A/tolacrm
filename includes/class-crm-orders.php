@@ -31,12 +31,18 @@ class Woo_CRM_Orders {
                 Woo_CRM_Customers::recalculate_customer_segment($email);
             }
 
+            // Trigger WooCommerce Analytics update action
+            do_action('woocommerce_analytics_update_order', $order_id);
+
             // Force immediate sync with WooCommerce Analytics DataStore if available
             if (class_exists('\Automattic\WooCommerce\Admin\API\Reports\Orders\DataStore')) {
                 try {
-                    \Automattic\WooCommerce\Admin\API\Reports\Orders\DataStore::sync_order($order_id);
-                } catch (\Exception $e) {
-                    // Silently ignore sync exception if any
+                    $ds = new \Automattic\WooCommerce\Admin\API\Reports\Orders\DataStore();
+                    if (method_exists($ds, 'sync_order')) {
+                        $ds->sync_order($order_id);
+                    }
+                } catch (\Throwable $t) {
+                    // Silently catch all errors and exceptions
                 }
             }
         }
