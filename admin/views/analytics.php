@@ -11,37 +11,57 @@ global $wpdb;
 $stats_table = $wpdb->prefix . 'wc_order_stats';
 $lookup_table = $wpdb->prefix . 'wc_order_product_lookup';
 
+// Build contiguous 12-month timeline array ending at current month
+$monthly_data = array();
+for ($i = 11; $i >= 0; $i--) {
+    $ym = date('Y-m', strtotime("-$i months", current_time('timestamp')));
+    $monthly_data[$ym] = array(
+        'label'   => date('M Y', strtotime($ym . '-01')),
+        'revenue' => 0.0,
+        'orders'  => 0,
+    );
+}
+
 // 1. Past 12 Months Sales & Order Count Breakdown
 $sql_monthly = "SELECT 
                     DATE_FORMAT(date_created, '%Y-%m') as y_m, 
                     SUM(net_total) as total_revenue, 
                     COUNT(order_id) as total_orders 
                 FROM {$stats_table} 
-                WHERE status IN ('wc-completed', 'wc-processing') 
+                WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') 
                   AND date_created >= DATE_SUB(NOW(), INTERVAL 12 MONTH) 
                 GROUP BY y_m 
                 ORDER BY y_m ASC";
 
 $monthly_rows = $wpdb->get_results($sql_monthly);
 
-$labels = array();
-$revenue_data = array();
-$orders_data = array();
+if (!empty($monthly_rows)) {
+    foreach ($monthly_rows as $row) {
+        if (isset($monthly_data[$row->y_m])) {
+            $monthly_data[$row->y_m]['revenue'] = floatval($row->total_revenue);
+            $monthly_data[$row->y_m]['orders']  = intval($row->total_orders);
+        }
+    }
+}
 
-foreach ($monthly_rows as $row) {
-    $labels[] = date('M Y', strtotime($row->y_m . '-01'));
-    $revenue_data[] = floatval($row->total_revenue);
-    $orders_data[] = intval($row->total_orders);
+$labels       = array();
+$revenue_data = array();
+$orders_data  = array();
+
+foreach ($monthly_data as $ym => $data) {
+    $labels[]       = $data['label'];
+    $revenue_data[] = round($data['revenue'], 2);
+    $orders_data[]  = $data['orders'];
 }
 
 // 2. Month-over-Month calculation
-$cur_month_rev = !empty($revenue_data) ? end($revenue_data) : 0;
+$cur_month_rev  = !empty($revenue_data) ? end($revenue_data) : 0;
 $prev_month_rev = (count($revenue_data) >= 2) ? $revenue_data[count($revenue_data) - 2] : 0;
-$mom_rev_pct = ($prev_month_rev > 0) ? (($cur_month_rev - $prev_month_rev) / $prev_month_rev) * 100 : 0;
+$mom_rev_pct    = ($prev_month_rev > 0) ? (($cur_month_rev - $prev_month_rev) / $prev_month_rev) * 100 : 0;
 
-$cur_month_ord = !empty($orders_data) ? end($orders_data) : 0;
+$cur_month_ord  = !empty($orders_data) ? end($orders_data) : 0;
 $prev_month_ord = (count($orders_data) >= 2) ? $orders_data[count($orders_data) - 2] : 0;
-$mom_ord_pct = ($prev_month_ord > 0) ? (($cur_month_ord - $prev_month_ord) / $prev_month_ord) * 100 : 0;
+$mom_ord_pct    = ($prev_month_ord > 0) ? (($cur_month_ord - $prev_month_ord) / $prev_month_ord) * 100 : 0;
 
 // 3. Top Products Ranking (by net revenue)
 $sql_top_prods = "SELECT product_id, SUM(product_qty) as total_qty, SUM(product_net_revenue) as total_revenue 

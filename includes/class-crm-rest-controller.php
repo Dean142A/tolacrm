@@ -55,7 +55,7 @@ class Woo_CRM_REST_Controller extends WP_REST_Controller {
         $month_snapshot = $wpdb->get_row($wpdb->prepare(
             "SELECT SUM(net_total) as total_sales, COUNT(order_id) as total_orders 
              FROM {$stats_table} 
-             WHERE status IN ('wc-completed', 'wc-processing') AND date_created >= %s",
+             WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') AND date_created >= %s",
             date('Y-m-01 00:00:00')
         ));
 
@@ -87,7 +87,7 @@ class Woo_CRM_REST_Controller extends WP_REST_Controller {
                    SUM(net_total) as ltv, 
                    MAX(date_created) as last_order_date 
             FROM {$stats_table} 
-            WHERE status IN ('wc-completed', 'wc-processing') 
+            WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') 
             GROUP BY customer_id HAVING total_orders > 0 
             ORDER BY ltv DESC LIMIT 50
         ");

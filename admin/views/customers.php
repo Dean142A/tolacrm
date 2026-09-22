@@ -18,7 +18,7 @@ $sql = "SELECT customer_id,
                SUM(net_total) as ltv, 
                MAX(date_created) as last_order_date 
         FROM {$stats_table} 
-        WHERE status IN ('wc-completed', 'wc-processing') 
+        WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') 
         GROUP BY customer_id HAVING total_orders > 0 
         ORDER BY ltv DESC LIMIT 100";
 

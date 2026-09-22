@@ -16,7 +16,7 @@ $first_day_month = date('Y-m-01 00:00:00');
 $month_snapshot = $wpdb->get_row($wpdb->prepare(
     "SELECT SUM(net_total) as total_sales, COUNT(order_id) as total_orders, AVG(net_total) as avg_order_val 
      FROM {$stats_table} 
-     WHERE status IN ('wc-completed', 'wc-processing') AND date_created >= %s",
+     WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') AND date_created >= %s",
     $first_day_month
 ));
 

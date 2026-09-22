@@ -73,7 +73,7 @@ class Woo_CRM_Exporter {
                        SUM(net_total) as ltv, 
                        MAX(date_created) as last_order_date 
                 FROM {$stats_table} 
-                WHERE status IN ('wc-completed', 'wc-processing') 
+                WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') 
                 GROUP BY customer_id 
                 ORDER BY ltv DESC";
 

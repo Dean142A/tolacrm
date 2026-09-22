@@ -48,11 +48,11 @@ class Woo_CRM_Customers {
         $params = array();
 
         if ($user_id > 0) {
-            $where_clause = "WHERE customer_id = %d AND status IN ('wc-completed', 'wc-processing')";
+            $where_clause = "WHERE customer_id = %d AND status IN ('completed', 'processing', 'wc-completed', 'wc-processing')";
             $params[] = $user_id;
         } else {
             // Match guest by billing email in order stats or postmeta
-            $where_clause = "WHERE status IN ('wc-completed', 'wc-processing') AND order_id IN (
+            $where_clause = "WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') AND order_id IN (
                 SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_billing_email' AND meta_value = %s
             )";
             $params[] = $email;

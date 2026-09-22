@@ -202,7 +202,7 @@ class Woo_CRM_Campaigns {
             $guest_emails = $wpdb->get_col("
                 SELECT DISTINCT meta_value FROM {$wpdb->postmeta} 
                 WHERE meta_key = '_billing_email' AND post_id IN (
-                    SELECT order_id FROM {$stats_table} WHERE status IN ('wc-completed', 'wc-processing')
+                    SELECT order_id FROM {$stats_table} WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing')
                 )
             ");
 
