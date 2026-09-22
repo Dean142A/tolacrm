@@ -11,14 +11,38 @@ global $wpdb;
 $stats_table = $wpdb->prefix . 'wc_order_stats';
 $carts_table = $wpdb->prefix . 'crm_carts';
 
-// Monthly Sales Snapshot (current month)
 $first_day_month = date('Y-m-01 00:00:00');
-$month_snapshot = $wpdb->get_row($wpdb->prepare(
-    "SELECT SUM(net_total) as total_sales, COUNT(order_id) as total_orders, AVG(net_total) as avg_order_val 
-     FROM {$stats_table} 
-     WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') AND date_created >= %s",
-    $first_day_month
-));
+$valid_statuses = array('completed', 'processing', 'wc-completed', 'wc-processing');
+
+$month_snapshot = null;
+if ($wpdb->get_var("SHOW TABLES LIKE '{$stats_table}'") === $stats_table) {
+    $month_snapshot = $wpdb->get_row($wpdb->prepare(
+        "SELECT SUM(COALESCE(net_total, total_sales, 0)) as total_sales, COUNT(order_id) as total_orders, AVG(COALESCE(net_total, total_sales, 0)) as avg_order_val 
+         FROM {$stats_table} 
+         WHERE status IN ('" . implode("','", $valid_statuses) . "') AND date_created >= %s",
+        $first_day_month
+    ));
+}
+
+if (!$month_snapshot || (floatval($month_snapshot->total_sales) == 0 && intval($month_snapshot->total_orders) == 0)) {
+    $hpos_table = $wpdb->prefix . 'wc_orders';
+    if ($wpdb->get_var("SHOW TABLES LIKE '{$hpos_table}'") === $hpos_table) {
+        $month_snapshot = $wpdb->get_row($wpdb->prepare(
+            "SELECT SUM(total_amount) as total_sales, COUNT(id) as total_orders, AVG(total_amount) as avg_order_val 
+             FROM {$hpos_table} 
+             WHERE status IN ('" . implode("','", $valid_statuses) . "') AND type = 'shop_order' AND date_created_gmt >= %s",
+            $first_day_month
+        ));
+    } else {
+        $month_snapshot = $wpdb->get_row($wpdb->prepare(
+            "SELECT SUM(pm.meta_value) as total_sales, COUNT(p.ID) as total_orders, AVG(pm.meta_value) as avg_order_val 
+             FROM {$wpdb->posts} p 
+             LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_order_total' 
+             WHERE p.post_type = 'shop_order' AND p.post_status IN ('" . implode("','", $valid_statuses) . "') AND p.post_date >= %s",
+            $first_day_month
+        ));
+    }
+}
 
 $monthly_sales  = $month_snapshot ? floatval($month_snapshot->total_sales) : 0.00;
 $monthly_orders = $month_snapshot ? intval($month_snapshot->total_orders) : 0;

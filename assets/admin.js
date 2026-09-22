@@ -11,9 +11,16 @@
         if (typeof window.wooCrmAnalyticsData !== 'undefined' && $('#crm-chart-monthly-revenue').length) {
             var data = window.wooCrmAnalyticsData;
 
+            if (window.wooCrmRevChartInstance) {
+                window.wooCrmRevChartInstance.destroy();
+            }
+            if (window.wooCrmOrdChartInstance) {
+                window.wooCrmOrdChartInstance.destroy();
+            }
+
             // Monthly Revenue Chart
             var ctxRev = document.getElementById('crm-chart-monthly-revenue').getContext('2d');
-            new Chart(ctxRev, {
+            window.wooCrmRevChartInstance = new Chart(ctxRev, {
                 type: 'line',
                 data: {
                     labels: data.labels,
@@ -30,6 +37,7 @@
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
@@ -40,7 +48,7 @@
 
             // Monthly Orders Chart
             var ctxOrd = document.getElementById('crm-chart-monthly-orders').getContext('2d');
-            new Chart(ctxOrd, {
+            window.wooCrmOrdChartInstance = new Chart(ctxOrd, {
                 type: 'bar',
                 data: {
                     labels: data.labels,
@@ -53,6 +61,7 @@
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { beginAtZero: true, grid: { color: '#f1f5f9' } },

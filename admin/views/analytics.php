@@ -7,42 +7,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-global $wpdb;
-$stats_table = $wpdb->prefix . 'wc_order_stats';
-$lookup_table = $wpdb->prefix . 'wc_order_product_lookup';
-
-// Build contiguous 12-month timeline array ending at current month
-$monthly_data = array();
-for ($i = 11; $i >= 0; $i--) {
-    $ym = date('Y-m', strtotime("-$i months", current_time('timestamp')));
-    $monthly_data[$ym] = array(
-        'label'   => date('M Y', strtotime($ym . '-01')),
-        'revenue' => 0.0,
-        'orders'  => 0,
-    );
-}
-
-// 1. Past 12 Months Sales & Order Count Breakdown
-$sql_monthly = "SELECT 
-                    DATE_FORMAT(date_created, '%Y-%m') as y_m, 
-                    SUM(net_total) as total_revenue, 
-                    COUNT(order_id) as total_orders 
-                FROM {$stats_table} 
-                WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') 
-                  AND date_created >= DATE_SUB(NOW(), INTERVAL 12 MONTH) 
-                GROUP BY y_m 
-                ORDER BY y_m ASC";
-
-$monthly_rows = $wpdb->get_results($sql_monthly);
-
-if (!empty($monthly_rows)) {
-    foreach ($monthly_rows as $row) {
-        if (isset($monthly_data[$row->y_m])) {
-            $monthly_data[$row->y_m]['revenue'] = floatval($row->total_revenue);
-            $monthly_data[$row->y_m]['orders']  = intval($row->total_orders);
-        }
-    }
-}
+$monthly_data = Woo_CRM_Orders::get_monthly_analytics(12);
 
 $labels       = array();
 $revenue_data = array();
@@ -64,12 +29,7 @@ $prev_month_ord = (count($orders_data) >= 2) ? $orders_data[count($orders_data) 
 $mom_ord_pct    = ($prev_month_ord > 0) ? (($cur_month_ord - $prev_month_ord) / $prev_month_ord) * 100 : 0;
 
 // 3. Top Products Ranking (by net revenue)
-$sql_top_prods = "SELECT product_id, SUM(product_qty) as total_qty, SUM(product_net_revenue) as total_revenue 
-                  FROM {$lookup_table} 
-                  GROUP BY product_id 
-                  ORDER BY total_revenue DESC 
-                  LIMIT 10";
-$top_products = $wpdb->get_results($sql_top_prods);
+$top_products = Woo_CRM_Orders::get_top_products_analytics(10);
 ?>
 
 <div class="woo-crm-tab-content woo-crm-analytics">

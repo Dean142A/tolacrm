@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce CRM
  * Plugin URI: https://example.com/woo-crm
  * Description: All-in-one native WooCommerce CRM for cart abandonment recovery, customer segmentation, purchase history, order journey tracking, campaign blasts, and analytics.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Tola
  * Author URI: https://example.com
  * Text Domain: woo-crm
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin Constants
-define('WOO_CRM_VERSION', '1.0.1');
+define('WOO_CRM_VERSION', '1.0.2');
 define('WOO_CRM_FILE', __FILE__);
 define('WOO_CRM_PATH', plugin_dir_path(__FILE__));
 define('WOO_CRM_URL', plugin_dir_url(__FILE__));
