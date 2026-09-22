@@ -107,9 +107,9 @@ class Woo_CRM_Admin {
         Woo_CRM_Security::check_capability();
         Woo_CRM_Security::check_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '');
 
-        $segment = isset($_POST['segment']) ? sanitize_text_field($_POST['segment']) : 'all';
-        $subject = isset($_POST['subject']) ? sanitize_text_field($_POST['subject']) : '';
-        $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
+        $segment  = isset($_POST['segment']) ? sanitize_text_field($_POST['segment']) : 'all';
+        $subject  = isset($_POST['subject']) ? sanitize_text_field($_POST['subject']) : '';
+        $message  = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
         $discount = isset($_POST['discount']) ? floatval($_POST['discount']) : 0;
 
         if (empty($subject) || empty($message)) {
@@ -118,9 +118,15 @@ class Woo_CRM_Admin {
 
         $count = Woo_CRM_Campaigns::trigger_manual_blast($segment, $subject, $message, $discount);
 
-        wp_send_json_success(array(
-            'message' => sprintf(__('Campaign sent successfully to %d customer(s).', 'woo-crm'), $count)
-        ));
+        if ($count > 0) {
+            wp_send_json_success(array(
+                'message' => sprintf(__('Campaign sent successfully to %d recipient(s).', 'woo-crm'), $count)
+            ));
+        } else {
+            wp_send_json_error(array(
+                'message' => __('No recipients found matching the selected segment or mail server delivery failed.', 'woo-crm')
+            ));
+        }
     }
 
     /**
@@ -130,11 +136,11 @@ class Woo_CRM_Admin {
         Woo_CRM_Security::check_capability();
         Woo_CRM_Security::check_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '');
 
-        $subject = isset($_POST['subject']) ? sanitize_text_field($_POST['subject']) : '';
-        $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
+        $subject  = isset($_POST['subject']) ? sanitize_text_field($_POST['subject']) : '';
+        $message  = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
         $discount = isset($_POST['discount']) ? floatval($_POST['discount']) : 0;
 
-        $sample_coupon = $discount > 0 ? 'PREVIEW-' . rand(100, 999) : '';
+        $sample_coupon = $discount > 0 ? 'PREVIEW-OFFER10' : '';
 
         $context = array(
             'email'           => 'alex.smith@example.com',
@@ -167,7 +173,7 @@ class Woo_CRM_Admin {
 
         $html .= '<div style="padding:30px;"><p>' . wp_kses_post(nl2br($parsed_message)) . '</p>';
 
-        if ($sample_coupon) {
+        if ($sample_coupon && (strpos($parsed_message, $sample_coupon) === false)) {
             $html .= '<div style="background:#fffbeb; border:2px dashed #f59e0b; border-radius:8px; padding:16px; margin:20px 0; text-align:center;">';
             $html .= '<p style="margin:0; font-size:14px; color:#b45309; font-weight:600;">' . esc_html__('Your Special Promo Code:', 'woo-crm') . '</p>';
             $html .= '<h3 style="margin:8px 0; font-size:24px; color:#78350f; letter-spacing:2px;">' . esc_html($sample_coupon) . '</h3>';

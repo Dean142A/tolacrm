@@ -111,7 +111,7 @@ class Woo_CRM_Notifications {
     public static function send_manual_blast($email, $subject, $message_body, $coupon_code = null) {
         $body = '<p>' . wp_kses_post(nl2br($message_body)) . '</p>';
 
-        if (!empty($coupon_code)) {
+        if (!empty($coupon_code) && (strpos($message_body, $coupon_code) === false)) {
             $body .= '<div style="background:#fffbeb; border:2px dashed #f59e0b; border-radius:8px; padding:16px; margin:20px 0; text-align:center;">';
             $body .= '<p style="margin:0; font-size:14px; color:#b45309; font-weight:600;">' . esc_html__('Your Special Promo Code:', 'woo-crm') . '</p>';
             $body .= '<h3 style="margin:8px 0; font-size:24px; color:#78350f; letter-spacing:2px;">' . esc_html($coupon_code) . '</h3>';

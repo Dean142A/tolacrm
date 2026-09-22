@@ -123,6 +123,27 @@ class Woo_CRM_Campaigns {
         global $wpdb;
         $table_name = $wpdb->prefix . 'crm_campaign_log';
 
+        // Ensure campaign log table exists
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") !== $table_name) {
+            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql = "CREATE TABLE {$table_name} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                user_id BIGINT UNSIGNED NULL,
+                email VARCHAR(255) NOT NULL,
+                segment VARCHAR(20) NOT NULL,
+                campaign_type VARCHAR(50) NOT NULL,
+                coupon_code VARCHAR(50) NULL,
+                trigger_type ENUM('auto','manual') NOT NULL DEFAULT 'auto',
+                sent_at DATETIME NOT NULL,
+                PRIMARY KEY  (id),
+                KEY email (email),
+                KEY segment (segment),
+                KEY sent_at (sent_at)
+            ) {$charset_collate};";
+            dbDelta($sql);
+        }
+
         $recipients = self::get_emails_for_segment($segment);
         if (empty($recipients)) {
             return 0;
@@ -131,8 +152,23 @@ class Woo_CRM_Campaigns {
         $sent_count = 0;
 
         foreach ($recipients as $recipient) {
-            $email = $recipient['email'];
+            $email   = $recipient['email'];
             $user_id = $recipient['user_id'];
+            $name    = !empty($recipient['name']) ? $recipient['name'] : strstr($email, '@', true);
+
+            // Extract first name intelligently
+            $first_name = $name;
+            if ($user_id > 0) {
+                $u = get_userdata($user_id);
+                if ($u && !empty($u->first_name)) {
+                    $first_name = $u->first_name;
+                } elseif ($u && !empty($u->display_name)) {
+                    $first_name = $u->display_name;
+                }
+            }
+            if (empty($first_name) || $first_name === 'Guest Customer') {
+                $first_name = strstr($email, '@', true);
+            }
 
             $coupon_code = '';
             if ($discount_percent > 0) {
@@ -142,8 +178,8 @@ class Woo_CRM_Campaigns {
             // Parse Merge Tags for personalized broadcast
             $context = array(
                 'email'           => $email,
-                'first_name'      => strstr($email, '@', true),
-                'segment'         => $segment,
+                'first_name'      => ucfirst($first_name),
+                'segment'         => $recipient['segment'],
                 'coupon_code'     => $coupon_code,
                 'discount_amount' => $discount_percent ? $discount_percent . '%' : '',
             );
@@ -159,7 +195,7 @@ class Woo_CRM_Campaigns {
                     array(
                         'user_id'       => $user_id,
                         'email'         => $email,
-                        'segment'       => $segment,
+                        'segment'       => $recipient['segment'],
                         'campaign_type' => 'manual_blast',
                         'coupon_code'   => $coupon_code,
                         'trigger_type'  => 'manual',
@@ -175,50 +211,20 @@ class Woo_CRM_Campaigns {
     }
 
     /**
-     * Helper to resolve emails for a specific segment.
+     * Helper to resolve recipients (registered users + guests) for a specific segment.
      */
-    private static function get_emails_for_segment($segment) {
-        global $wpdb;
+    public static function get_emails_for_segment($segment) {
+        $customers = Woo_CRM_Customers::get_all_customers($segment, 5000);
         $recipients = array();
 
-        if ($segment === 'all') {
-            $users = get_users(array('fields' => array('ID', 'user_email')));
-            foreach ($users as $u) {
-                $recipients[] = array('user_id' => $u->ID, 'email' => $u->user_email);
-            }
-        } else {
-            $users = get_users(array(
-                'meta_key'   => '_crm_segment',
-                'meta_value' => $segment,
-                'fields'     => array('ID', 'user_email')
-            ));
-
-            foreach ($users as $u) {
-                $recipients[] = array('user_id' => $u->ID, 'email' => $u->user_email);
-            }
-
-            // Also search wc_order_stats for non-user matches if segment matches
-            $stats_table = $wpdb->prefix . 'wc_order_stats';
-            $guest_emails = $wpdb->get_col("
-                SELECT DISTINCT meta_value FROM {$wpdb->postmeta} 
-                WHERE meta_key = '_billing_email' AND post_id IN (
-                    SELECT order_id FROM {$stats_table} WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing')
-                )
-            ");
-
-            foreach ($guest_emails as $g_email) {
-                if (is_email($g_email)) {
-                    $exists = false;
-                    foreach ($recipients as $r) {
-                        if ($r['email'] === $g_email) {
-                            $exists = true;
-                            break;
-                        }
-                    }
-                    if (!$exists) {
-                        $recipients[] = array('user_id' => null, 'email' => $g_email);
-                    }
-                }
+        foreach ($customers as $c) {
+            if (!empty($c['email']) && is_email($c['email'])) {
+                $recipients[] = array(
+                    'user_id' => $c['customer_id'] > 0 ? $c['customer_id'] : null,
+                    'email'   => strtolower(trim($c['email'])),
+                    'name'    => $c['name'],
+                    'segment' => $c['segment'],
+                );
             }
         }
 
