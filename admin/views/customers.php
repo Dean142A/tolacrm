@@ -11,18 +11,7 @@ global $wpdb;
 $stats_table = $wpdb->prefix . 'wc_order_stats';
 
 $selected_segment = isset($_GET['segment']) ? sanitize_text_field($_GET['segment']) : 'all';
-
-$sql = "SELECT customer_id, 
-               (SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_billing_email' AND post_id = MAX(order_id) LIMIT 1) as billing_email,
-               COUNT(order_id) as total_orders, 
-               SUM(net_total) as ltv, 
-               MAX(date_created) as last_order_date 
-        FROM {$stats_table} 
-        WHERE status IN ('completed', 'processing', 'wc-completed', 'wc-processing') 
-        GROUP BY customer_id HAVING total_orders > 0 
-        ORDER BY ltv DESC LIMIT 100";
-
-$customers = $wpdb->get_results($sql);
+$customers = Woo_CRM_Customers::get_all_customers($selected_segment, 100);
 $export_url = admin_url('admin.php?action=woo_crm_export_customers');
 ?>
 
@@ -56,21 +45,19 @@ $export_url = admin_url('admin.php?action=woo_crm_export_customers');
                     <tbody>
                         <?php foreach ($customers as $c) : ?>
                             <?php
-                            $user = get_userdata($c->customer_id);
-                            $email = $user ? $user->user_email : ($c->billing_email ? $c->billing_email : 'Customer #' . $c->customer_id);
-                            $name  = $user ? $user->display_name : __('Guest Customer', 'woo-crm');
-                            $segment = Woo_CRM_Customers::recalculate_customer_segment($c->customer_id ? $c->customer_id : $email);
-                            $tags = Woo_CRM_Tags::get_tags($c->customer_id ? $c->customer_id : $email);
-
-                            if ($selected_segment !== 'all' && $segment !== $selected_segment) {
-                                continue;
-                            }
+                            $email = $c['email'];
+                            $name  = $c['name'];
+                            $segment = $c['segment'];
+                            $tags = $c['tags'];
+                            $identifier = $c['customer_id'] > 0 ? $c['customer_id'] : $email;
                             ?>
                             <tr>
                                 <td>
                                     <strong><?php echo esc_html($name); ?></strong>
-                                    <br><span class="text-muted font-small"><?php echo esc_html($email); ?></span>
-                                    <?php if (!$c->customer_id) : ?>
+                                    <?php if (!empty($email)) : ?>
+                                        <br><span class="text-muted font-small"><?php echo esc_html($email); ?></span>
+                                    <?php endif; ?>
+                                    <?php if ($c['is_guest']) : ?>
                                         <span class="woo-crm-badge badge-guest"><?php esc_html_e('Guest Match', 'woo-crm'); ?></span>
                                     <?php endif; ?>
                                 </td>
@@ -88,11 +75,11 @@ $export_url = admin_url('admin.php?action=woo_crm_export_customers');
                                         <span class="text-muted font-small">—</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><strong><?php echo intval($c->total_orders); ?></strong></td>
-                                <td><strong class="text-success"><?php echo wc_price($c->ltv); ?></strong></td>
-                                <td><?php echo esc_html(date('M j, Y', strtotime($c->last_order_date))); ?></td>
+                                <td><strong><?php echo intval($c['total_orders']); ?></strong></td>
+                                <td><strong class="text-success"><?php echo wc_price($c['ltv']); ?></strong></td>
+                                <td><?php echo esc_html($c['last_order_date'] ? date('M j, Y', strtotime($c['last_order_date'])) : '—'); ?></td>
                                 <td class="text-right">
-                                    <button class="button button-small button-secondary btn-view-customer-profile" data-identifier="<?php echo esc_attr($c->customer_id ? $c->customer_id : $email); ?>">
+                                    <button class="button button-small button-secondary btn-view-customer-profile" data-identifier="<?php echo esc_attr($identifier); ?>">
                                         <span class="dashicons dashicons-id"></span> <?php esc_html_e('View Profile', 'woo-crm'); ?>
                                     </button>
                                 </td>

@@ -115,6 +115,189 @@ class Woo_CRM_Customers {
     }
 
     /**
+     * Get aggregated customer records (registered users + guests) with segment filtering.
+     */
+    public static function get_all_customers($segment = 'all', $limit = 100) {
+        global $wpdb;
+
+        $customers_map = array();
+
+        // 1. Fetch Registered Users with order history or segments
+        $registered_users = get_users(array(
+            'number'  => 150,
+            'orderby' => 'registered',
+            'order'   => 'DESC',
+        ));
+
+        foreach ($registered_users as $u) {
+            $user_id = $u->ID;
+            $email   = $u->user_email;
+            $name    = $u->display_name ? $u->display_name : $email;
+
+            $customers_map['user_' . $user_id] = array(
+                'customer_id'     => $user_id,
+                'email'           => $email,
+                'name'            => $name,
+                'is_guest'        => false,
+                'total_orders'    => 0,
+                'ltv'             => 0.00,
+                'last_order_date' => null,
+                'segment'         => 'new',
+                'tags'            => Woo_CRM_Tags::get_tags($user_id),
+            );
+        }
+
+        // 2. Fetch order metrics from WooCommerce orders
+        $valid_statuses = array('completed', 'processing', 'wc-completed', 'wc-processing');
+        $status_in = "'" . implode("','", $valid_statuses) . "'";
+
+        $stats_table = $wpdb->prefix . 'wc_order_stats';
+        $stats_available = ($wpdb->get_var("SHOW TABLES LIKE '{$stats_table}'") === $stats_table);
+
+        if ($stats_available) {
+            $user_stats = $wpdb->get_results(
+                "SELECT customer_id, COUNT(order_id) as total_orders, SUM(COALESCE(net_total, total_sales, 0)) as ltv, MAX(date_created) as last_date 
+                 FROM {$stats_table} 
+                 WHERE status IN ({$status_in}) AND customer_id > 0 
+                 GROUP BY customer_id"
+            );
+
+            foreach ($user_stats as $us) {
+                $key = 'user_' . $us->customer_id;
+                if (!isset($customers_map[$key])) {
+                    $u = get_userdata($us->customer_id);
+                    if ($u) {
+                        $customers_map[$key] = array(
+                            'customer_id'     => $us->customer_id,
+                            'email'           => $u->user_email,
+                            'name'            => $u->display_name,
+                            'is_guest'        => false,
+                            'total_orders'    => 0,
+                            'ltv'             => 0.00,
+                            'last_order_date' => null,
+                            'segment'         => 'new',
+                            'tags'            => Woo_CRM_Tags::get_tags($us->customer_id),
+                        );
+                    }
+                }
+                if (isset($customers_map[$key])) {
+                    $customers_map[$key]['total_orders']    = intval($us->total_orders);
+                    $customers_map[$key]['ltv']             = floatval($us->ltv);
+                    $customers_map[$key]['last_order_date'] = $us->last_date;
+                }
+            }
+
+            $guest_stats = $wpdb->get_results(
+                "SELECT pm.meta_value as billing_email, COUNT(s.order_id) as total_orders, SUM(COALESCE(s.net_total, s.total_sales, 0)) as ltv, MAX(s.date_created) as last_date 
+                 FROM {$stats_table} s 
+                 INNER JOIN {$wpdb->postmeta} pm ON s.order_id = pm.post_id AND pm.meta_key = '_billing_email' 
+                 WHERE s.status IN ({$status_in}) AND (s.customer_id IS NULL OR s.customer_id = 0) 
+                 GROUP BY pm.meta_value"
+            );
+
+            foreach ($guest_stats as $gs) {
+                if (is_email($gs->billing_email)) {
+                    $g_email = strtolower(trim($gs->billing_email));
+                    $key = 'guest_' . md5($g_email);
+                    if (!isset($customers_map[$key])) {
+                        $customers_map[$key] = array(
+                            'customer_id'     => 0,
+                            'email'           => $g_email,
+                            'name'            => __('Guest Customer', 'woo-crm'),
+                            'is_guest'        => true,
+                            'total_orders'    => intval($gs->total_orders),
+                            'ltv'             => floatval($gs->ltv),
+                            'last_order_date' => $gs->last_date,
+                            'segment'         => 'new',
+                            'tags'            => Woo_CRM_Tags::get_tags($g_email),
+                        );
+                    }
+                }
+            }
+        }
+
+        // Fallback/Supplement using wc_get_orders
+        $recent_orders = wc_get_orders(array(
+            'limit'   => 150,
+            'status'  => array('completed', 'processing'),
+            'orderby' => 'date',
+            'order'   => 'DESC',
+        ));
+
+        foreach ($recent_orders as $o) {
+            $user_id = $o->get_user_id();
+            $email   = strtolower(trim($o->get_billing_email()));
+            $total   = floatval($o->get_total());
+            $date    = $o->get_date_created() ? $o->get_date_created()->date('Y-m-d H:i:s') : '';
+
+            if ($user_id > 0) {
+                $key = 'user_' . $user_id;
+                if (!isset($customers_map[$key])) {
+                    $u = get_userdata($user_id);
+                    $customers_map[$key] = array(
+                        'customer_id'     => $user_id,
+                        'email'           => $email ? $email : ($u ? $u->user_email : ''),
+                        'name'            => $u ? $u->display_name : $o->get_formatted_billing_full_name(),
+                        'is_guest'        => false,
+                        'total_orders'    => 0,
+                        'ltv'             => 0.00,
+                        'last_order_date' => $date,
+                        'segment'         => 'new',
+                        'tags'            => Woo_CRM_Tags::get_tags($user_id),
+                    );
+                }
+                if ($customers_map[$key]['total_orders'] == 0) {
+                    $customers_map[$key]['total_orders']    = 1;
+                    $customers_map[$key]['ltv']             = $total;
+                    $customers_map[$key]['last_order_date'] = $date;
+                }
+            } elseif (is_email($email)) {
+                $key = 'guest_' . md5($email);
+                if (!isset($customers_map[$key])) {
+                    $customers_map[$key] = array(
+                        'customer_id'     => 0,
+                        'email'           => $email,
+                        'name'            => $o->get_formatted_billing_full_name() ? $o->get_formatted_billing_full_name() : __('Guest Customer', 'woo-crm'),
+                        'is_guest'        => true,
+                        'total_orders'    => 1,
+                        'ltv'             => $total,
+                        'last_order_date' => $date,
+                        'segment'         => 'new',
+                        'tags'            => Woo_CRM_Tags::get_tags($email),
+                    );
+                }
+            }
+        }
+
+        // Calculate segment for each customer and filter
+        $result = array();
+        foreach ($customers_map as $c) {
+            $identifier = $c['customer_id'] > 0 ? $c['customer_id'] : $c['email'];
+            if (empty($identifier)) {
+                continue;
+            }
+
+            $c['segment'] = self::recalculate_customer_segment($identifier);
+
+            if ($segment !== 'all' && $c['segment'] !== $segment) {
+                continue;
+            }
+
+            $result[] = $c;
+        }
+
+        // Sort by LTV descending
+        usort($result, function($a, $b) {
+            if ($a['ltv'] == $b['ltv']) {
+                return $b['total_orders'] - $a['total_orders'];
+            }
+            return ($a['ltv'] < $b['ltv']) ? 1 : -1;
+        });
+
+        return array_slice($result, 0, $limit);
+    }
+
+    /**
      * Aggregate detailed customer profile for Customers view modal/tab.
      */
     public static function get_customer_profile($identifier) {
@@ -143,7 +326,6 @@ class Woo_CRM_Customers {
         $stats_table = $wpdb->prefix . 'wc_order_stats';
         $lookup_table = $wpdb->prefix . 'wc_order_product_lookup';
 
-        // Orders summary & LTV
         $summary = array(
             'total_orders'  => 0,
             'ltv'           => 0.00,
@@ -152,16 +334,19 @@ class Woo_CRM_Customers {
             'last_order'    => null,
         );
 
+        $valid_statuses = array('completed', 'processing', 'wc-completed', 'wc-processing');
+        $status_in = "'" . implode("','", $valid_statuses) . "'";
+
         if ($user_id > 0) {
             $sql = $wpdb->prepare(
-                "SELECT COUNT(*) as count, SUM(net_total) as ltv, AVG(net_total) as avg_val, MIN(date_created) as first_date, MAX(date_created) as last_date 
-                 FROM {$stats_table} WHERE customer_id = %d AND status IN ('wc-completed', 'wc-processing')",
+                "SELECT COUNT(*) as count, SUM(COALESCE(net_total, total_sales, 0)) as ltv, AVG(COALESCE(net_total, total_sales, 0)) as avg_val, MIN(date_created) as first_date, MAX(date_created) as last_date 
+                 FROM {$stats_table} WHERE customer_id = %d AND status IN ({$status_in})",
                 $user_id
             );
         } else {
             $sql = $wpdb->prepare(
-                "SELECT COUNT(*) as count, SUM(net_total) as ltv, AVG(net_total) as avg_val, MIN(date_created) as first_date, MAX(date_created) as last_date 
-                 FROM {$stats_table} WHERE status IN ('wc-completed', 'wc-processing') AND order_id IN (
+                "SELECT COUNT(*) as count, SUM(COALESCE(net_total, total_sales, 0)) as ltv, AVG(COALESCE(net_total, total_sales, 0)) as avg_val, MIN(date_created) as first_date, MAX(date_created) as last_date 
+                 FROM {$stats_table} WHERE status IN ({$status_in}) AND order_id IN (
                     SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_billing_email' AND meta_value = %s
                  )",
                 $email
@@ -175,6 +360,32 @@ class Woo_CRM_Customers {
             $summary['avg_order']    = floatval($res->avg_val);
             $summary['first_order']  = $res->first_date;
             $summary['last_order']   = $res->last_date;
+        } else {
+            // Fallback via wc_get_orders
+            $query_args = array(
+                'limit'   => -1,
+                'status'  => array('completed', 'processing'),
+                'return'  => 'ids',
+            );
+            if ($user_id > 0) {
+                $query_args['customer_id'] = $user_id;
+            } elseif (!empty($email)) {
+                $query_args['billing_email'] = $email;
+            }
+            $order_ids = wc_get_orders($query_args);
+            if (!empty($order_ids)) {
+                $tot_ltv = 0;
+                foreach ($order_ids as $oid) {
+                    $o = wc_get_order($oid);
+                    if ($o) {
+                        $tot_ltv += floatval($o->get_total());
+                    }
+                }
+                $cnt = count($order_ids);
+                $summary['total_orders'] = $cnt;
+                $summary['ltv']          = $tot_ltv;
+                $summary['avg_order']    = $cnt > 0 ? ($tot_ltv / $cnt) : 0;
+            }
         }
 
         // Recent Orders List
@@ -256,22 +467,24 @@ class Woo_CRM_Customers {
         $active_days = isset($settings['active_segment_days']) ? intval($settings['active_segment_days']) : 30;
 
         $cutoff_date = date('Y-m-d H:i:s', current_time('timestamp') - ($active_days * DAY_IN_SECONDS));
+        $valid_statuses = array('completed', 'processing', 'wc-completed', 'wc-processing');
+        $status_in = "'" . implode("','", $valid_statuses) . "'";
 
         // Active customers: ordered within active_days
         $active_count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(DISTINCT customer_id) FROM {$stats_table} WHERE status IN ('wc-completed', 'wc-processing') AND date_created >= %s",
+            "SELECT COUNT(DISTINCT customer_id) FROM {$stats_table} WHERE status IN ({$status_in}) AND date_created >= %s",
             $cutoff_date
         ));
 
         // Total unique customers with completed orders
         $total_customers = $wpdb->get_var(
-            "SELECT COUNT(DISTINCT customer_id) FROM {$stats_table} WHERE status IN ('wc-completed', 'wc-processing')"
+            "SELECT COUNT(DISTINCT customer_id) FROM {$stats_table} WHERE status IN ({$status_in})"
         );
 
         // Returning customers: total unique with >1 order
         $returning_count = $wpdb->get_var(
             "SELECT COUNT(*) FROM (
-                SELECT customer_id FROM {$stats_table} WHERE status IN ('wc-completed', 'wc-processing') GROUP BY customer_id HAVING COUNT(order_id) >= 1
+                SELECT customer_id FROM {$stats_table} WHERE status IN ({$status_in}) GROUP BY customer_id HAVING COUNT(order_id) >= 1
             ) as t"
         );
 
