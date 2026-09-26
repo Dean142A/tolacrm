@@ -461,3 +461,24 @@
 
 .settings-divider { border: 0; border-top: 1px solid var(--crm-border); margin: 24px 0; }
 .settings-section-title { font-size: 15px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+
+/* Coupon Styles */
+.coupon-code-pill {
+    transition: all 0.2s ease;
+}
+.coupon-code-pill:hover {
+    background: #e0e7ff !important;
+    border-color: #818cf8 !important;
+}
+.btn-copy-code, .btn-copy-url, .btn-delete-coupon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px !important;
+    height: 28px !important;
+}
+.btn-copy-code:hover, .btn-copy-url:hover {
+    border-color: var(--crm-primary) !important;
+    color: var(--crm-primary) !important;
+}
+

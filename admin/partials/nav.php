@@ -17,6 +17,7 @@ $tabs = array(
     'customers' => array('label' => __('Customers', 'woo-crm'), 'icon' => 'dashicons-groups'),
     'journeys'  => array('label' => __('Customer Journeys', 'woo-crm'), 'icon' => 'dashicons-location-alt'),
     'campaigns' => array('label' => __('Campaigns', 'woo-crm'), 'icon' => 'dashicons-megaphone'),
+    'coupons'   => array('label' => __('Coupons', 'woo-crm'), 'icon' => 'dashicons-tickets-alt'),
     'analytics' => array('label' => __('Analytics', 'woo-crm'), 'icon' => 'dashicons-chart-area'),
     'settings'  => array('label' => __('Settings', 'woo-crm'), 'icon' => 'dashicons-admin-generic'),
 );

@@ -62,6 +62,10 @@ class Woo_CRM_Loader {
         $this->add_action('wp_ajax_woo_crm_get_customer_details', $plugin_admin, 'ajax_get_customer_details');
         $this->add_action('wp_ajax_woo_crm_toggle_contact_tag', $plugin_admin, 'ajax_toggle_contact_tag');
 
+        // Coupon Management Admin AJAX
+        $this->add_action('wp_ajax_woo_crm_create_coupon', $plugin_admin, 'ajax_create_coupon');
+        $this->add_action('wp_ajax_woo_crm_delete_coupon', $plugin_admin, 'ajax_delete_coupon');
+
         // CSV Export Admin Actions
         $this->add_action('admin_action_woo_crm_export_carts', 'Woo_CRM_Exporter', 'export_carts_csv');
         $this->add_action('admin_action_woo_crm_export_customers', 'Woo_CRM_Exporter', 'export_customers_csv');
@@ -71,6 +75,9 @@ class Woo_CRM_Loader {
         $carts = new Woo_CRM_Carts();
         $orders = new Woo_CRM_Orders();
         $privacy = new Woo_CRM_Privacy();
+
+        // Coupon URL Auto-Apply Trigger
+        $this->add_action('wp', 'Woo_CRM_Campaigns', 'handle_auto_apply_coupon_url');
 
         // Cart tracking hooks
         $this->add_action('woocommerce_add_to_cart', $carts, 'on_cart_updated', 10, 0);

@@ -78,6 +78,7 @@ class Woo_CRM_Admin {
             'customers' => __('Customers', 'woo-crm'),
             'journeys'  => __('Customer Journeys', 'woo-crm'),
             'campaigns' => __('Campaigns', 'woo-crm'),
+            'coupons'   => __('Coupons', 'woo-crm'),
             'analytics' => __('Analytics', 'woo-crm'),
             'settings'  => __('Settings', 'woo-crm'),
         );
@@ -329,4 +330,72 @@ class Woo_CRM_Admin {
         $current_tags = Woo_CRM_Tags::get_tags($identifier);
         wp_send_json_success(array('tags' => $current_tags));
     }
+
+    /**
+     * AJAX: Create coupon via CRM admin tab.
+     */
+    public function ajax_create_coupon() {
+        Woo_CRM_Security::check_capability();
+        Woo_CRM_Security::check_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '');
+
+        $custom_code    = isset($_POST['custom_code']) ? sanitize_text_field($_POST['custom_code']) : '';
+        $prefix         = isset($_POST['prefix']) ? sanitize_text_field($_POST['prefix']) : 'CRM-';
+        $discount_type  = isset($_POST['discount_type']) ? sanitize_text_field($_POST['discount_type']) : 'percent';
+        $amount         = isset($_POST['amount']) ? floatval($_POST['amount']) : 10;
+        $expiry_days    = isset($_POST['expiry_days']) ? intval($_POST['expiry_days']) : 7;
+        $usage_limit    = isset($_POST['usage_limit']) ? intval($_POST['usage_limit']) : 1;
+        $min_spend      = isset($_POST['min_spend']) ? floatval($_POST['min_spend']) : 0;
+        $free_shipping  = !empty($_POST['free_shipping']) ? true : false;
+
+        if (empty($prefix)) {
+            $prefix = 'CRM-';
+        }
+
+        if ($amount <= 0 && !$free_shipping) {
+            wp_send_json_error(array('message' => __('Please specify a discount amount greater than 0 or enable free shipping.', 'woo-crm')));
+        }
+
+        $code = Woo_CRM_Campaigns::create_coupon(
+            $discount_type,
+            $amount,
+            $expiry_days,
+            $prefix,
+            $min_spend,
+            $free_shipping,
+            $usage_limit,
+            $custom_code
+        );
+
+        if ($code) {
+            wp_send_json_success(array(
+                'message'     => sprintf(__('Coupon %s created successfully!', 'woo-crm'), strtoupper($code)),
+                'coupon_code' => strtoupper($code)
+            ));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to create coupon. Ensure WooCommerce is active.', 'woo-crm')));
+        }
+    }
+
+    /**
+     * AJAX: Delete coupon.
+     */
+    public function ajax_delete_coupon() {
+        Woo_CRM_Security::check_capability();
+        Woo_CRM_Security::check_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '');
+
+        $coupon_id = isset($_POST['coupon_id']) ? intval($_POST['coupon_id']) : 0;
+
+        if (!$coupon_id) {
+            wp_send_json_error(array('message' => __('Invalid coupon ID.', 'woo-crm')));
+        }
+
+        $deleted = wp_delete_post($coupon_id, true);
+
+        if ($deleted) {
+            wp_send_json_success(array('message' => __('Coupon deleted successfully.', 'woo-crm')));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to delete coupon.', 'woo-crm')));
+        }
+    }
 }
+

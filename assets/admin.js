@@ -311,6 +311,107 @@
             $('#woo-crm-customer-modal').removeClass('active');
         });
 
+        // 9. Coupon Creation Form Handler
+        $('#woo-crm-create-coupon-form').on('submit', function(e) {
+            e.preventDefault();
+
+            var $form = $(this);
+            var $btn = $form.find('.btn-create-coupon');
+            var $spinner = $('#create-coupon-spinner');
+
+            $btn.prop('disabled', true);
+            $spinner.addClass('is-active');
+
+            var formData = $form.serializeArray();
+            formData.push({ name: 'action', value: 'woo_crm_create_coupon' });
+            formData.push({ name: 'nonce', value: wooCrmData.nonce });
+
+            $.post(wooCrmData.ajax_url, formData, function(res) {
+                $btn.prop('disabled', false);
+                $spinner.removeClass('is-active');
+
+                if (res.success) {
+                    alert(res.data.message);
+                    location.reload();
+                } else {
+                    alert(res.data.message || 'Error creating coupon.');
+                }
+            }).fail(function() {
+                $btn.prop('disabled', false);
+                $spinner.removeClass('is-active');
+                alert('Server connection error.');
+            });
+        });
+
+        // 10. Coupon Delete Action Handler
+        $(document).on('click', '.btn-delete-coupon', function(e) {
+            e.preventDefault();
+
+            if (!confirm('Are you sure you want to permanently delete this coupon?')) {
+                return;
+            }
+
+            var $btn = $(this);
+            var couponId = $btn.data('id');
+
+            $.post(wooCrmData.ajax_url, {
+                action: 'woo_crm_delete_coupon',
+                coupon_id: couponId,
+                nonce: wooCrmData.nonce
+            }, function(res) {
+                if (res.success) {
+                    $('#crm-coupon-row-' + couponId).fadeOut(300, function() { $(this).remove(); });
+                } else {
+                    alert(res.data.message || 'Failed to delete coupon.');
+                }
+            });
+        });
+
+        // 11. Copy Code / Copy URL Clipboard Buttons
+        $(document).on('click', '.btn-copy-code', function(e) {
+            e.preventDefault();
+            var code = $(this).data('code');
+            if (navigator.clipboard && code) {
+                navigator.clipboard.writeText(code).then(function() {
+                    alert('Coupon code "' + code + '" copied to clipboard!');
+                });
+            }
+        });
+
+        $(document).on('click', '.btn-copy-url', function(e) {
+            e.preventDefault();
+            var url = $(this).data('url');
+            if (navigator.clipboard && url) {
+                navigator.clipboard.writeText(url).then(function() {
+                    alert('Auto-apply coupon link copied to clipboard!\n\n' + url);
+                });
+            }
+        });
+
+        // 12. Coupon Filters and Live Search Reload
+        $('#crm-coupon-filter-source, #crm-coupon-filter-status').on('change', function() {
+            var src = $('#crm-coupon-filter-source').val();
+            var status = $('#crm-coupon-filter-status').val();
+            var search = $('#crm-coupon-search-input').val();
+
+            var newUrl = new URL(window.location.href);
+            newUrl.searchParams.set('crm_source', src);
+            newUrl.searchParams.set('crm_status', status);
+            if (search) {
+                newUrl.searchParams.set('s_coupon', search);
+            } else {
+                newUrl.searchParams.delete('s_coupon');
+            }
+            window.location.href = newUrl.toString();
+        });
+
+        $('#crm-coupon-search-input').on('keyup search', function(e) {
+            if (e.type === 'search' || e.keyCode === 13) {
+                $('#crm-coupon-filter-source').trigger('change');
+            }
+        });
+
     });
 
 })(jQuery);
+

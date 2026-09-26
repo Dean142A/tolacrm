@@ -12,39 +12,227 @@ if (!defined('ABSPATH')) {
 class Woo_CRM_Campaigns {
 
     /**
-     * Generate dynamic single-use coupon exclusively via WooCommerce WC_Coupon API.
+     * Generate dynamic single-use or multi-use coupon exclusively via WooCommerce WC_Coupon API.
      */
-    public static function create_coupon($discount_type = 'percent', $amount = 10, $expiry_days = 7, $prefix = 'CRM-', $min_spend = 0, $free_shipping = false) {
+    public static function create_coupon($discount_type = 'percent', $amount = 10, $expiry_days = 7, $prefix = 'CRM-', $min_spend = 0, $free_shipping = false, $usage_limit = 1, $custom_code = '') {
         if (!class_exists('WC_Coupon')) {
             return '';
         }
 
-        $random_suffix = strtoupper(wp_generate_password(6, false, false));
-        $code = strtolower($prefix . $random_suffix);
+        // Validate discount type
+        $allowed_types = array('percent', 'fixed_cart', 'fixed_product');
+        if (!in_array($discount_type, $allowed_types, true)) {
+            $discount_type = 'percent';
+        }
 
-        $coupon = new WC_Coupon();
+        if (!empty($custom_code)) {
+            $code = wc_format_coupon_code(trim($custom_code));
+        } else {
+            $random_suffix = strtoupper(wp_generate_password(6, false, false));
+            $code = wc_format_coupon_code($prefix . $random_suffix);
+        }
+
+        // If coupon code already exists, delete or fallback
+        $existing_id = wc_get_coupon_id_by_code($code);
+        if ($existing_id) {
+            if (empty($custom_code)) {
+                $code = wc_format_coupon_code($prefix . strtoupper(wp_generate_password(8, false, false)));
+            } else {
+                // Update existing coupon
+                $coupon = new WC_Coupon($existing_id);
+            }
+        }
+
+        if (!isset($coupon)) {
+            $coupon = new WC_Coupon();
+        }
+
         $coupon->set_code($code);
+        $coupon->set_status('publish'); // Ensure post is published and valid for WooCommerce checkout
         $coupon->set_discount_type($discount_type);
-        $coupon->set_amount($amount);
+        $coupon->set_amount(floatval($amount));
         $coupon->set_individual_use(true);
-        $coupon->set_usage_limit(1);
+
+        if ($usage_limit > 0) {
+            $coupon->set_usage_limit(intval($usage_limit));
+        } else {
+            $coupon->set_usage_limit(null);
+        }
 
         if ($min_spend > 0) {
-            $coupon->set_minimum_amount($min_spend);
+            $coupon->set_minimum_amount(floatval($min_spend));
+        } else {
+            $coupon->set_minimum_amount(0);
         }
 
-        if ($free_shipping) {
-            $coupon->set_free_shipping(true);
-        }
+        $coupon->set_free_shipping((bool) $free_shipping);
 
         if ($expiry_days > 0) {
             $expiry_date = date('Y-m-d', current_time('timestamp') + ($expiry_days * DAY_IN_SECONDS));
             $coupon->set_date_expires($expiry_date);
+        } else {
+            $coupon->set_date_expires(null);
         }
 
-        $coupon->save();
+        // Ensure coupon applies to all products by default
+        $coupon->set_product_ids(array());
+        $coupon->set_excluded_product_ids(array());
+
+        $coupon_id = $coupon->save();
+
+        if ($coupon_id) {
+            update_post_meta($coupon_id, '_woo_crm_generated', '1');
+            update_post_meta($coupon_id, '_woo_crm_source', sanitize_text_field($prefix));
+        }
 
         return $code;
+    }
+
+    /**
+     * Auto-apply coupon to WooCommerce cart when URL parameter ?apply_coupon=CODE or ?coupon=CODE is present.
+     */
+    public static function handle_auto_apply_coupon_url() {
+        if (is_admin()) {
+            return;
+        }
+
+        $coupon_code = '';
+        if (!empty($_GET['apply_coupon'])) {
+            $coupon_code = sanitize_text_field($_GET['apply_coupon']);
+        } elseif (!empty($_GET['coupon'])) {
+            $coupon_code = sanitize_text_field($_GET['coupon']);
+        } elseif (!empty($_GET['discount'])) {
+            $coupon_code = sanitize_text_field($_GET['discount']);
+        }
+
+        if (empty($coupon_code) || !function_exists('WC') || !WC()->cart) {
+            return;
+        }
+
+        $coupon_code = wc_format_coupon_code($coupon_code);
+
+        if (WC()->cart->has_discount($coupon_code)) {
+            return;
+        }
+
+        $coupon = new WC_Coupon($coupon_code);
+        if ($coupon->get_id() && $coupon->is_valid()) {
+            WC()->cart->apply_coupon($coupon_code);
+            if (!wc_has_notice(sprintf(__('Coupon "%s" applied successfully!', 'woo-crm'), $coupon_code), 'success')) {
+                wc_add_notice(sprintf(__('Discount coupon "%s" automatically applied to your cart!', 'woo-crm'), $coupon_code), 'success');
+            }
+        }
+    }
+
+    /**
+     * Get list of all coupons with CRM meta details and campaign usage trace.
+     */
+    public static function get_all_coupons($filter_source = 'all', $filter_status = 'all', $search = '') {
+        if (!class_exists('WC_Coupon')) {
+            return array();
+        }
+
+        $args = array(
+            'posts_per_page' => 200,
+            'post_type'      => 'shop_coupon',
+            'post_status'    => array('publish', 'draft', 'private', 'pending'),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+
+        if (!empty($search)) {
+            $args['s'] = sanitize_text_field($search);
+        }
+
+        $posts = get_posts($args);
+        $coupons = array();
+
+        global $wpdb;
+        $campaign_log_table = $wpdb->prefix . 'crm_campaign_log';
+        $log_exists = ($wpdb->get_var("SHOW TABLES LIKE '{$campaign_log_table}'") === $campaign_log_table);
+
+        foreach ($posts as $post) {
+            $coupon = new WC_Coupon($post->ID);
+            $code   = $coupon->get_code();
+            $is_crm = (get_post_meta($post->ID, '_woo_crm_generated', true) === '1');
+            $crm_source = get_post_meta($post->ID, '_woo_crm_source', true);
+
+            if ($filter_source === 'crm' && !$is_crm) {
+                continue;
+            }
+            if ($filter_source === 'wc' && $is_crm) {
+                continue;
+            }
+
+            $date_expires = $coupon->get_date_expires();
+            $expiry_formatted = $date_expires ? $date_expires->date('Y-m-d') : '';
+
+            $usage_limit = $coupon->get_usage_limit();
+            $usage_count = $coupon->get_usage_count();
+
+            $is_expired = false;
+            if ($date_expires && $date_expires->getTimestamp() < current_time('timestamp')) {
+                $is_expired = true;
+            }
+
+            $is_exhausted = false;
+            if ($usage_limit > 0 && $usage_count >= $usage_limit) {
+                $is_exhausted = true;
+            }
+
+            $status_label = 'Active';
+            if ($post->post_status !== 'publish') {
+                $status_label = ucfirst($post->post_status);
+            } elseif ($is_expired) {
+                $status_label = 'Expired';
+            } elseif ($is_exhausted) {
+                $status_label = 'Exhausted';
+            }
+
+            if ($filter_status === 'active' && ($status_label !== 'Active')) {
+                continue;
+            }
+            if ($filter_status === 'expired' && !$is_expired) {
+                continue;
+            }
+
+            // Find matching campaign log entry if generated for email
+            $recipient_email = '';
+            $campaign_type   = '';
+            if ($log_exists && !empty($code)) {
+                $log_row = $wpdb->get_row($wpdb->prepare(
+                    "SELECT email, campaign_type FROM {$campaign_log_table} WHERE coupon_code = %s ORDER BY id DESC LIMIT 1",
+                    $code
+                ));
+                if ($log_row) {
+                    $recipient_email = $log_row->email;
+                    $campaign_type   = $log_row->campaign_type;
+                }
+            }
+
+            $coupons[] = array(
+                'id'              => $post->ID,
+                'code'            => strtoupper($code),
+                'raw_code'        => $code,
+                'discount_type'   => $coupon->get_discount_type(),
+                'amount'          => floatval($coupon->get_amount()),
+                'usage_count'     => intval($usage_count),
+                'usage_limit'     => $usage_limit ? intval($usage_limit) : 0,
+                'min_spend'       => floatval($coupon->get_minimum_amount()),
+                'free_shipping'   => $coupon->get_free_shipping(),
+                'expiry_date'     => $expiry_formatted,
+                'is_crm'          => $is_crm,
+                'crm_source'      => $crm_source ? $crm_source : ($is_crm ? 'CRM' : 'Manual'),
+                'status'          => $status_label,
+                'is_expired'      => $is_expired,
+                'is_exhausted'    => $is_exhausted,
+                'recipient_email' => $recipient_email,
+                'campaign_type'   => $campaign_type,
+                'created_at'      => get_the_date('Y-m-d H:i', $post->ID),
+            );
+        }
+
+        return $coupons;
     }
 
     /**
