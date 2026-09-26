@@ -9,7 +9,27 @@ if (!defined('ABSPATH')) {
 
 global $wpdb;
 $campaigns_table = $wpdb->prefix . 'crm_campaign_log';
-$logs = $wpdb->get_results("SELECT * FROM {$campaigns_table} ORDER BY sent_at DESC LIMIT 50");
+
+$search_campaign = isset($_GET['s_campaign']) ? sanitize_text_field($_GET['s_campaign']) : '';
+$where = array();
+$params = array();
+
+if (!empty($search_campaign)) {
+    $where[] = "(email LIKE %s OR campaign_type LIKE %s OR coupon_code LIKE %s)";
+    $params[] = '%' . $wpdb->esc_like($search_campaign) . '%';
+    $params[] = '%' . $wpdb->esc_like($search_campaign) . '%';
+    $params[] = '%' . $wpdb->esc_like($search_campaign) . '%';
+}
+
+$where_sql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+$query = "SELECT * FROM {$campaigns_table} {$where_sql} ORDER BY sent_at DESC LIMIT 50";
+
+if (!empty($params)) {
+    $logs = $wpdb->get_results($wpdb->prepare($query, $params));
+} else {
+    $logs = $wpdb->get_results($query);
+}
+
 $merge_tags = Woo_CRM_Merge_Tags::get_available_tags();
 ?>
 
@@ -76,8 +96,11 @@ $merge_tags = Woo_CRM_Merge_Tags::get_available_tags();
 
         <!-- Campaign Dispatch History Log -->
         <div class="woo-crm-card">
-            <div class="card-header">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <h2><span class="dashicons dashicons-list-view"></span> <?php esc_html_e('Campaign Dispatch History', 'woo-crm'); ?></h2>
+                <div>
+                    <input type="search" id="crm-campaign-search-input" placeholder="<?php esc_attr_e('Search email/coupon...', 'woo-crm'); ?>" value="<?php echo esc_attr($search_campaign); ?>" style="height:32px; width:160px; font-size:12px;">
+                </div>
             </div>
             <div class="card-body p-0">
                 <?php if (!empty($logs)) : ?>
@@ -88,13 +111,13 @@ $merge_tags = Woo_CRM_Merge_Tags::get_available_tags();
                                 <th><?php esc_html_e('Segment', 'woo-crm'); ?></th>
                                 <th><?php esc_html_e('Campaign Type', 'woo-crm'); ?></th>
                                 <th><?php esc_html_e('Coupon', 'woo-crm'); ?></th>
-                                <th><?php esc_html_e('Trigger', 'woo-crm'); ?></th>
                                 <th><?php esc_html_e('Sent At', 'woo-crm'); ?></th>
+                                <th class="text-right"><?php esc_html_e('Actions', 'woo-crm'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($logs as $log) : ?>
-                                <tr>
+                                <tr id="crm-campaign-log-row-<?php echo esc_attr($log->id); ?>">
                                     <td><strong><?php echo esc_html($log->email); ?></strong></td>
                                     <td><span class="woo-crm-badge segment-badge-<?php echo esc_attr($log->segment); ?>"><?php echo esc_html(ucfirst($log->segment)); ?></span></td>
                                     <td><?php echo esc_html($log->campaign_type); ?></td>
@@ -105,12 +128,20 @@ $merge_tags = Woo_CRM_Merge_Tags::get_available_tags();
                                             <span class="text-muted">—</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
-                                        <span class="woo-crm-badge badge-trigger-<?php echo esc_attr($log->trigger_type); ?>">
-                                            <?php echo esc_html(ucfirst($log->trigger_type)); ?>
-                                        </span>
-                                    </td>
                                     <td><?php echo esc_html(human_time_diff(strtotime($log->sent_at), current_time('timestamp')) . ' ' . __('ago', 'woo-crm')); ?></td>
+                                    <td class="text-right">
+                                        <div style="display:flex; justify-content:flex-end; gap:4px;">
+                                            <button type="button" class="button button-small btn-copy-campaign-log" data-email="<?php echo esc_attr($log->email); ?>" data-coupon="<?php echo esc_attr($log->coupon_code); ?>" data-type="<?php echo esc_attr($log->campaign_type); ?>" title="<?php esc_attr_e('Copy Log Details', 'woo-crm'); ?>">
+                                                <span class="dashicons dashicons-admin-page" style="font-size:14px; width:14px; height:14px; vertical-align:middle;"></span>
+                                            </button>
+                                            <button type="button" class="button button-small btn-share-campaign-log" data-email="<?php echo esc_attr($log->email); ?>" data-coupon="<?php echo esc_attr($log->coupon_code); ?>" data-type="<?php echo esc_attr($log->campaign_type); ?>" title="<?php esc_attr_e('Share Log Details', 'woo-crm'); ?>">
+                                                <span class="dashicons dashicons-share" style="font-size:14px; width:14px; height:14px; vertical-align:middle;"></span>
+                                            </button>
+                                            <button type="button" class="button button-small button-link-delete btn-delete-campaign-log" data-id="<?php echo esc_attr($log->id); ?>" title="<?php esc_attr_e('Delete Log Entry', 'woo-crm'); ?>">
+                                                <span class="dashicons dashicons-trash" style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#ef4444;"></span>
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

@@ -397,5 +397,28 @@ class Woo_CRM_Admin {
             wp_send_json_error(array('message' => __('Failed to delete coupon.', 'woo-crm')));
         }
     }
+
+    /**
+     * AJAX: Delete campaign log entry.
+     */
+    public function ajax_delete_campaign_log() {
+        Woo_CRM_Security::check_capability();
+        Woo_CRM_Security::check_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '');
+
+        $log_id = isset($_POST['log_id']) ? intval($_POST['log_id']) : 0;
+        if (!$log_id) {
+            wp_send_json_error(array('message' => __('Invalid log ID.', 'woo-crm')));
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'crm_campaign_log';
+        $deleted = $wpdb->delete($table_name, array('id' => $log_id), array('%d'));
+
+        if ($deleted) {
+            wp_send_json_success(array('message' => __('Campaign log entry deleted.', 'woo-crm')));
+        } else {
+            wp_send_json_error(array('message' => __('Failed to delete log entry.', 'woo-crm')));
+        }
+    }
 }
 

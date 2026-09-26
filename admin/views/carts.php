@@ -12,6 +12,7 @@ $carts_table = $wpdb->prefix . 'crm_carts';
 
 $status_filter = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'active';
 $stage_filter  = isset($_GET['stage']) ? sanitize_text_field($_GET['stage']) : 'all';
+$search_cart   = isset($_GET['s_cart']) ? sanitize_text_field($_GET['s_cart']) : '';
 
 $where = array();
 $params = array();
@@ -25,6 +26,12 @@ if ($status_filter === 'active') {
 if ($stage_filter !== 'all') {
     $where[] = "notification_stage = %d";
     $params[] = intval($stage_filter);
+}
+
+if (!empty($search_cart)) {
+    $where[] = "(email LIKE %s OR cart_contents LIKE %s)";
+    $params[] = '%' . $wpdb->esc_like($search_cart) . '%';
+    $params[] = '%' . $wpdb->esc_like($search_cart) . '%';
 }
 
 $where_sql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
@@ -49,13 +56,22 @@ $export_url = admin_url('admin.php?action=woo_crm_export_carts');
 
 <div class="woo-crm-tab-content woo-crm-carts">
     <div class="woo-crm-card">
-        <div class="card-header">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <h2><span class="dashicons dashicons-cart"></span> <?php esc_html_e('Abandoned Cart Recovery Monitor', 'woo-crm'); ?></h2>
-            <div class="card-actions">
+            <div class="card-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <select id="crm-cart-filter-stage" style="height:32px; font-size:12px;">
+                    <option value="all" <?php selected($stage_filter, 'all'); ?>><?php esc_html_e('All Stages', 'woo-crm'); ?></option>
+                    <?php foreach ($stage_names as $st_idx => $st_label) : ?>
+                        <option value="<?php echo esc_attr($st_idx); ?>" <?php selected((string)$stage_filter, (string)$st_idx); ?>><?php echo esc_html($st_label); ?></option>
+                    <?php endforeach; ?>
+                </select>
+
+                <input type="search" id="crm-cart-search-input" placeholder="<?php esc_attr_e('Search email/items...', 'woo-crm'); ?>" value="<?php echo esc_attr($search_cart); ?>" style="height:32px; width:160px; font-size:12px;">
+
                 <a href="<?php echo esc_url($export_url); ?>" class="button button-secondary"><span class="dashicons dashicons-download"></span> <?php esc_html_e('Export CSV', 'woo-crm'); ?></a>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=active')); ?>" class="button <?php echo $status_filter === 'active' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Active Unconverted', 'woo-crm'); ?></a>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=converted')); ?>" class="button <?php echo $status_filter === 'converted' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Converted Carts', 'woo-crm'); ?></a>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=all')); ?>" class="button <?php echo $status_filter === 'all' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('All Carts', 'woo-crm'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=active')); ?>" class="button <?php echo $status_filter === 'active' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Active', 'woo-crm'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=converted')); ?>" class="button <?php echo $status_filter === 'converted' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('Converted', 'woo-crm'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=woo-crm&tab=carts&status=all')); ?>" class="button <?php echo $status_filter === 'all' ? 'button-primary' : 'button-secondary'; ?>"><?php esc_html_e('All', 'woo-crm'); ?></a>
             </div>
         </div>
 
@@ -84,6 +100,7 @@ $export_url = admin_url('admin.php?action=woo_crm_export_carts');
                                 }
                             }
                             $contents_str = implode(', ', $item_names);
+                            $recovery_url = site_url('/?restore_cart=' . $c->id);
                             ?>
                             <tr id="crm-cart-row-<?php echo esc_attr($c->id); ?>">
                                 <td>
@@ -116,14 +133,22 @@ $export_url = admin_url('admin.php?action=woo_crm_export_carts');
                                 </td>
                                 <td><?php echo esc_html(human_time_diff(strtotime($c->updated_at), current_time('timestamp')) . ' ' . __('ago', 'woo-crm')); ?></td>
                                 <td class="text-right action-buttons">
-                                    <?php if (!$c->converted_at) : ?>
-                                        <button class="button button-small button-primary btn-send-now-cart" data-cart-id="<?php echo esc_attr($c->id); ?>">
-                                            <span class="dashicons dashicons-email-alt"></span> <?php esc_html_e('Send Now', 'woo-crm'); ?>
+                                    <div style="display:flex; justify-content:flex-end; gap:4px;">
+                                        <?php if (!$c->converted_at) : ?>
+                                            <button class="button button-small button-primary btn-send-now-cart" data-cart-id="<?php echo esc_attr($c->id); ?>" title="<?php esc_attr_e('Send Recovery Email', 'woo-crm'); ?>">
+                                                <span class="dashicons dashicons-email-alt" style="font-size:14px; width:14px; height:14px; vertical-align:middle;"></span>
+                                            </button>
+                                        <?php endif; ?>
+                                        <button class="button button-small btn-copy-cart-info" data-email="<?php echo esc_attr($c->email); ?>" data-url="<?php echo esc_url($recovery_url); ?>" data-total="<?php echo esc_attr($c->cart_total); ?>" title="<?php esc_attr_e('Copy Cart Recovery Link', 'woo-crm'); ?>">
+                                            <span class="dashicons dashicons-admin-page" style="font-size:14px; width:14px; height:14px; vertical-align:middle;"></span>
                                         </button>
-                                    <?php endif; ?>
-                                    <button class="button button-small button-link-delete btn-clear-cart" data-cart-id="<?php echo esc_attr($c->id); ?>">
-                                        <?php esc_html_e('Clear', 'woo-crm'); ?>
-                                    </button>
+                                        <button class="button button-small btn-share-cart" data-email="<?php echo esc_attr($c->email); ?>" data-url="<?php echo esc_url($recovery_url); ?>" data-total="<?php echo esc_attr($c->cart_total); ?>" title="<?php esc_attr_e('Share Recovery Link', 'woo-crm'); ?>">
+                                            <span class="dashicons dashicons-share" style="font-size:14px; width:14px; height:14px; vertical-align:middle;"></span>
+                                        </button>
+                                        <button class="button button-small button-link-delete btn-clear-cart" data-cart-id="<?php echo esc_attr($c->id); ?>" title="<?php esc_attr_e('Delete Cart', 'woo-crm'); ?>">
+                                            <span class="dashicons dashicons-trash" style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#ef4444;"></span>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

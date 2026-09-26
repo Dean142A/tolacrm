@@ -250,6 +250,9 @@ foreach ($all_coupons as $c) {
                                             <button type="button" class="button button-small btn-copy-url" data-url="<?php echo esc_url(site_url('/?apply_coupon=' . $coupon['raw_code'])); ?>" title="<?php esc_attr_e('Copy Auto-Apply Link', 'woo-crm'); ?>">
                                                 <span class="dashicons dashicons-admin-links" style="font-size:14px; width:14px; height:14px; vertical-align:middle;"></span>
                                             </button>
+                                            <button type="button" class="button button-small btn-share-coupon" data-code="<?php echo esc_attr($coupon['code']); ?>" data-url="<?php echo esc_url(site_url('/?apply_coupon=' . $coupon['raw_code'])); ?>" data-amount="<?php echo esc_attr($coupon['discount_type'] === 'percent' ? $coupon['amount'] . '%' : '$' . $coupon['amount']); ?>" title="<?php esc_attr_e('Share Coupon', 'woo-crm'); ?>">
+                                                <span class="dashicons dashicons-share" style="font-size:14px; width:14px; height:14px; vertical-align:middle;"></span>
+                                            </button>
                                             <button type="button" class="button button-small button-link-delete btn-delete-coupon" data-id="<?php echo esc_attr($coupon['id']); ?>" title="<?php esc_attr_e('Delete Coupon', 'woo-crm'); ?>">
                                                 <span class="dashicons dashicons-trash" style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#ef4444;"></span>
                                             </button>

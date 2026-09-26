@@ -117,14 +117,17 @@ class Woo_CRM_Customers {
     /**
      * Get aggregated customer records (registered users + guests) with segment filtering.
      */
-    public static function get_all_customers($segment = 'all', $limit = 100) {
+    /**
+     * Get aggregated customer records (registered users + guests) with segment, search, and tag filtering.
+     */
+    public static function get_all_customers($segment = 'all', $limit = 100, $search = '', $tag_filter = '') {
         global $wpdb;
 
         $customers_map = array();
 
         // 1. Fetch Registered Users with order history or segments
         $registered_users = get_users(array(
-            'number'  => 150,
+            'number'  => 200,
             'orderby' => 'registered',
             'order'   => 'DESC',
         ));
@@ -271,6 +274,8 @@ class Woo_CRM_Customers {
 
         // Calculate segment for each customer and filter
         $result = array();
+        $search_lower = strtolower(trim($search));
+
         foreach ($customers_map as $c) {
             $identifier = $c['customer_id'] > 0 ? $c['customer_id'] : $c['email'];
             if (empty($identifier)) {
@@ -281,6 +286,19 @@ class Woo_CRM_Customers {
 
             if ($segment !== 'all' && $c['segment'] !== $segment) {
                 continue;
+            }
+
+            if (!empty($tag_filter) && !in_array($tag_filter, $c['tags'], true)) {
+                continue;
+            }
+
+            if (!empty($search_lower)) {
+                $match_email = strpos(strtolower($c['email']), $search_lower) !== false;
+                $match_name  = strpos(strtolower($c['name']), $search_lower) !== false;
+                $match_id    = (string) $c['customer_id'] === $search_lower;
+                if (!$match_email && !$match_name && !$match_id) {
+                    continue;
+                }
             }
 
             $result[] = $c;

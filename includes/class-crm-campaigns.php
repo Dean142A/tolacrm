@@ -91,11 +91,43 @@ class Woo_CRM_Campaigns {
     /**
      * Auto-apply coupon to WooCommerce cart when URL parameter ?apply_coupon=CODE or ?coupon=CODE is present.
      */
+    /**
+     * Auto-apply coupon to WooCommerce cart and optionally restore cart items when URL parameter ?apply_coupon=CODE or ?restore_cart=ID is present.
+     */
     public static function handle_auto_apply_coupon_url() {
         if (is_admin()) {
             return;
         }
 
+        if (!function_exists('WC') || !WC()->cart) {
+            return;
+        }
+
+        // 1. Check for abandoned cart restoration request
+        $restore_cart_id = !empty($_GET['restore_cart']) ? intval($_GET['restore_cart']) : (!empty($_GET['crm_cart_id']) ? intval($_GET['crm_cart_id']) : 0);
+        if ($restore_cart_id > 0 && WC()->cart->is_empty()) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'crm_carts';
+            $cart_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_name} WHERE id = %d", $restore_cart_id));
+            if ($cart_row && !empty($cart_row->cart_contents)) {
+                $items = json_decode($cart_row->cart_contents, true);
+                if (is_array($items)) {
+                    foreach ($items as $item) {
+                        $p_id = !empty($item['product_id']) ? intval($item['product_id']) : 0;
+                        $v_id = !empty($item['variation_id']) ? intval($item['variation_id']) : 0;
+                        $qty  = !empty($item['quantity']) ? intval($item['quantity']) : 1;
+                        if ($p_id > 0) {
+                            WC()->cart->add_to_cart($p_id, $qty, $v_id);
+                        }
+                    }
+                    if (!wc_has_notice(__('Your abandoned cart items have been restored!', 'woo-crm'), 'success')) {
+                        wc_add_notice(__('Your abandoned cart items have been restored to your bag!', 'woo-crm'), 'success');
+                    }
+                }
+            }
+        }
+
+        // 2. Check for coupon apply request
         $coupon_code = '';
         if (!empty($_GET['apply_coupon'])) {
             $coupon_code = sanitize_text_field($_GET['apply_coupon']);
@@ -105,7 +137,7 @@ class Woo_CRM_Campaigns {
             $coupon_code = sanitize_text_field($_GET['discount']);
         }
 
-        if (empty($coupon_code) || !function_exists('WC') || !WC()->cart) {
+        if (empty($coupon_code)) {
             return;
         }
 
@@ -116,10 +148,18 @@ class Woo_CRM_Campaigns {
         }
 
         $coupon = new WC_Coupon($coupon_code);
-        if ($coupon->get_id() && $coupon->is_valid()) {
-            WC()->cart->apply_coupon($coupon_code);
-            if (!wc_has_notice(sprintf(__('Coupon "%s" applied successfully!', 'woo-crm'), $coupon_code), 'success')) {
-                wc_add_notice(sprintf(__('Discount coupon "%s" automatically applied to your cart!', 'woo-crm'), $coupon_code), 'success');
+        if ($coupon->get_id()) {
+            // Ensure coupon is published and valid for products
+            if ($coupon->get_status() !== 'publish') {
+                $coupon->set_status('publish');
+                $coupon->save();
+            }
+
+            if ($coupon->is_valid()) {
+                WC()->cart->apply_coupon($coupon_code);
+                if (!wc_has_notice(sprintf(__('Coupon "%s" applied successfully!', 'woo-crm'), strtoupper($coupon_code)), 'success')) {
+                    wc_add_notice(sprintf(__('Promo code "%s" applied successfully!', 'woo-crm'), strtoupper($coupon_code)), 'success');
+                }
             }
         }
     }
@@ -133,16 +173,12 @@ class Woo_CRM_Campaigns {
         }
 
         $args = array(
-            'posts_per_page' => 200,
+            'posts_per_page' => 300,
             'post_type'      => 'shop_coupon',
             'post_status'    => array('publish', 'draft', 'private', 'pending'),
             'orderby'        => 'date',
             'order'          => 'DESC',
         );
-
-        if (!empty($search)) {
-            $args['s'] = sanitize_text_field($search);
-        }
 
         $posts = get_posts($args);
         $coupons = array();
@@ -150,6 +186,8 @@ class Woo_CRM_Campaigns {
         global $wpdb;
         $campaign_log_table = $wpdb->prefix . 'crm_campaign_log';
         $log_exists = ($wpdb->get_var("SHOW TABLES LIKE '{$campaign_log_table}'") === $campaign_log_table);
+
+        $search_lower = strtolower(trim($search));
 
         foreach ($posts as $post) {
             $coupon = new WC_Coupon($post->ID);
@@ -207,6 +245,17 @@ class Woo_CRM_Campaigns {
                 if ($log_row) {
                     $recipient_email = $log_row->email;
                     $campaign_type   = $log_row->campaign_type;
+                }
+            }
+
+            // Substring search matching
+            if (!empty($search_lower)) {
+                $match_code  = strpos(strtolower($code), $search_lower) !== false;
+                $match_email = strpos(strtolower($recipient_email), $search_lower) !== false;
+                $match_src   = strpos(strtolower($crm_source), $search_lower) !== false;
+                $match_type  = strpos(strtolower($coupon->get_discount_type()), $search_lower) !== false;
+                if (!$match_code && !$match_email && !$match_src && !$match_type) {
+                    continue;
                 }
             }
 

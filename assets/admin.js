@@ -388,6 +388,26 @@
             }
         });
 
+        $(document).on('click', '.btn-share-coupon', function(e) {
+            e.preventDefault();
+            var code = $(this).data('code');
+            var url  = $(this).data('url');
+            var amt  = $(this).data('amount');
+            var text = 'Use promo code ' + code + ' for ' + amt + ' off! Direct discount link: ' + url;
+
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Special Coupon Code ' + code,
+                    text: text,
+                    url: url
+                }).catch(function() {});
+            } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    alert('Share link & message copied to clipboard!\n\n' + text);
+                });
+            }
+        });
+
         // 12. Coupon Filters and Live Search Reload
         $('#crm-coupon-filter-source, #crm-coupon-filter-status').on('change', function() {
             var src = $('#crm-coupon-filter-source').val();
@@ -411,7 +431,168 @@
             }
         });
 
+        // 13. Abandoned Cart Copy, Share & Filter Handlers
+        $('#crm-cart-filter-stage').on('change', function() {
+            var stage = $(this).val();
+            var search = $('#crm-cart-search-input').val();
+            var newUrl = new URL(window.location.href);
+            newUrl.searchParams.set('stage', stage);
+            if (search) {
+                newUrl.searchParams.set('s_cart', search);
+            } else {
+                newUrl.searchParams.delete('s_cart');
+            }
+            window.location.href = newUrl.toString();
+        });
+
+        $('#crm-cart-search-input').on('keyup search', function(e) {
+            if (e.type === 'search' || e.keyCode === 13) {
+                $('#crm-cart-filter-stage').trigger('change');
+            }
+        });
+
+        $(document).on('click', '.btn-copy-cart-info', function(e) {
+            e.preventDefault();
+            var email = $(this).data('email');
+            var url   = $(this).data('url');
+            var total = $(this).data('total');
+            var text  = 'Cart Recovery Link for ' + email + ' (Total: $' + total + '): ' + url;
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(function() {
+                    alert('Cart recovery link copied to clipboard!\n\n' + text);
+                });
+            }
+        });
+
+        $(document).on('click', '.btn-share-cart', function(e) {
+            e.preventDefault();
+            var email = $(this).data('email');
+            var url   = $(this).data('url');
+            var total = $(this).data('total');
+            var text  = 'Complete your purchase for cart (' + email + ') Total: $' + total + '. Recovery link: ' + url;
+
+            if (navigator.share) {
+                navigator.share({ title: 'Complete Order for ' + email, text: text, url: url }).catch(function() {});
+            } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    alert('Share message copied to clipboard!\n\n' + text);
+                });
+            }
+        });
+
+        // 14. Customer Search & Copy / Share Handlers
+        $('#crm-customer-search-input').on('keyup search', function(e) {
+            if (e.type === 'search' || e.keyCode === 13) {
+                var search = $(this).val();
+                var newUrl = new URL(window.location.href);
+                if (search) {
+                    newUrl.searchParams.set('s_customer', search);
+                } else {
+                    newUrl.searchParams.delete('s_customer');
+                }
+                window.location.href = newUrl.toString();
+            }
+        });
+
+        $(document).on('click', '.btn-copy-customer-info', function(e) {
+            e.preventDefault();
+            var email = $(this).data('email');
+            var name  = $(this).data('name');
+            var ltv   = $(this).data('ltv');
+            var text  = 'Customer: ' + name + ' (' + email + ') | LTV: $' + parseFloat(ltv).toFixed(2);
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    alert('Customer profile info copied to clipboard!\n\n' + text);
+                });
+            }
+        });
+
+        $(document).on('click', '.btn-share-customer', function(e) {
+            e.preventDefault();
+            var email = $(this).data('email');
+            var name  = $(this).data('name');
+            var ltv   = $(this).data('ltv');
+            var text  = 'Customer Profile: ' + name + ' (' + email + ') - Lifetime Spend: $' + parseFloat(ltv).toFixed(2);
+
+            if (navigator.share) {
+                navigator.share({ title: 'Customer ' + name, text: text }).catch(function() {});
+            } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    alert('Customer details copied to clipboard for sharing!\n\n' + text);
+                });
+            }
+        });
+
+        // 15. Campaign Log Search, Delete, Copy & Share Handlers
+        $('#crm-campaign-search-input').on('keyup search', function(e) {
+            if (e.type === 'search' || e.keyCode === 13) {
+                var search = $(this).val();
+                var newUrl = new URL(window.location.href);
+                if (search) {
+                    newUrl.searchParams.set('s_campaign', search);
+                } else {
+                    newUrl.searchParams.delete('s_campaign');
+                }
+                window.location.href = newUrl.toString();
+            }
+        });
+
+        $(document).on('click', '.btn-delete-campaign-log', function(e) {
+            e.preventDefault();
+            if (!confirm('Are you sure you want to delete this campaign log entry?')) {
+                return;
+            }
+
+            var $btn  = $(this);
+            var logId = $btn.data('id');
+
+            $.post(wooCrmData.ajax_url, {
+                action: 'woo_crm_delete_campaign_log',
+                log_id: logId,
+                nonce: wooCrmData.nonce
+            }, function(res) {
+                if (res.success) {
+                    $('#crm-campaign-log-row-' + logId).fadeOut(300, function() { $(this).remove(); });
+                } else {
+                    alert(res.data.message || 'Failed to delete log entry.');
+                }
+            });
+        });
+
+        $(document).on('click', '.btn-copy-campaign-log', function(e) {
+            e.preventDefault();
+            var email  = $(this).data('email');
+            var coupon = $(this).data('coupon');
+            var type   = $(this).data('type');
+            var text   = 'Campaign Dispatch: ' + type + ' to ' + email + (coupon ? ' (Coupon: ' + coupon + ')' : '');
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    alert('Campaign log info copied to clipboard!\n\n' + text);
+                });
+            }
+        });
+
+        $(document).on('click', '.btn-share-campaign-log', function(e) {
+            e.preventDefault();
+            var email  = $(this).data('email');
+            var coupon = $(this).data('coupon');
+            var type   = $(this).data('type');
+            var text   = 'Campaign Dispatch Log: ' + type + ' sent to ' + email + (coupon ? ' with promo coupon: ' + coupon : '');
+
+            if (navigator.share) {
+                navigator.share({ title: 'Campaign Dispatch ' + type, text: text }).catch(function() {});
+            } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function() {
+                    alert('Campaign report summary copied to clipboard!\n\n' + text);
+                });
+            }
+        });
+
     });
 
 })(jQuery);
+
 

@@ -65,6 +65,7 @@ class Woo_CRM_Loader {
         // Coupon Management Admin AJAX
         $this->add_action('wp_ajax_woo_crm_create_coupon', $plugin_admin, 'ajax_create_coupon');
         $this->add_action('wp_ajax_woo_crm_delete_coupon', $plugin_admin, 'ajax_delete_coupon');
+        $this->add_action('wp_ajax_woo_crm_delete_campaign_log', $plugin_admin, 'ajax_delete_campaign_log');
 
         // CSV Export Admin Actions
         $this->add_action('admin_action_woo_crm_export_carts', 'Woo_CRM_Exporter', 'export_carts_csv');
